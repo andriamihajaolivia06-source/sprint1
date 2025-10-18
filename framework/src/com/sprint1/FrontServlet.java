@@ -20,22 +20,22 @@ public class FrontServlet extends HttpServlet {
             relativeUri = relativeUri.substring(1);  
         }
 
-        // Construct resource path with leading / (e.g., /a.jsp, /index.html)
+      
         String resourcePath = "/" + (relativeUri.isEmpty() ? "index.html" : relativeUri);
 
-        // Check if the resource exists
+       
         if (getServletContext().getResource(resourcePath) != null) {
-            // For .jsp files, forward to Tomcat's JSP servlet
+            
             if (resourcePath.endsWith(".jsp")) {
                 getServletContext().getNamedDispatcher("jsp").forward(request, response);
-                return; // Exit after forwarding
+                return; 
             }
-            // For other files (e.g., .html), use standard forwarding
+            
             request.getRequestDispatcher(resourcePath).forward(request, response);
-            return; // Exit after forwarding
+            return; 
         }
 
-        // Resource does not exist, display URL
+        
         response.setContentType("text/html; charset=UTF-8");
         try (PrintWriter out = response.getWriter()) {
             out.println("<html>");
