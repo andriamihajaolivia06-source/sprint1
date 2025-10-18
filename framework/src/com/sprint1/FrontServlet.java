@@ -1,4 +1,4 @@
-package com.monframework;
+package com.sprint1;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -9,7 +9,6 @@ import java.io.PrintWriter;
 
 public class FrontServlet extends HttpServlet {
 
-   
     private void servicePersonnalisee(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
 
@@ -21,8 +20,23 @@ public class FrontServlet extends HttpServlet {
             relativeUri = relativeUri.substring(1);  
         }
 
-        response.setContentType("text/html; charset=UTF-8");
+       
+        String resourcePath = "/" + (relativeUri.isEmpty() ? "index.html" : relativeUri);
 
+        
+        if (getServletContext().getResource(resourcePath) != null) {
+           
+            if (resourcePath.endsWith(".jsp")) {
+                getServletContext().getNamedDispatcher("jsp").forward(request, response);
+                return; 
+            }
+           
+            request.getRequestDispatcher(resourcePath).forward(request, response);
+            return; 
+        }
+
+       
+        response.setContentType("text/html; charset=UTF-8");
         try (PrintWriter out = response.getWriter()) {
             out.println("<html>");
             out.println("<head><title>FrontServlet</title></head>");
@@ -32,7 +46,6 @@ public class FrontServlet extends HttpServlet {
             out.println("</html>");
         }
     }
-
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) 
