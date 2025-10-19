@@ -3,8 +3,8 @@
 # Créer dossier bin
 mkdir -p bin
 
-# Compilation
-javac -d bin -cp "/home/olivia/Documents/apache-tomcat-10.1.28/lib/servlet-api.jar" src/com/sprint1/FrontServlet.java
+# Compilation avec servlet-api.jar et jakarta.ws.rs-api.jar
+javac -d bin -cp "/home/olivia/Documents/apache-tomcat-10.1.28/lib/servlet-api.jar:/home/olivia/Documents/lib/jakarta.ws.rs-api-3.1.0.jar" src/com/sprint1/FrontServlet.java src/com/sprint1/Employer.java
 
 # Création du JAR
 mkdir -p dist
