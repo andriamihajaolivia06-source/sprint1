@@ -30,21 +30,33 @@ public class Main {
     public static void main(String[] args) {
         Class<?>[] classes = { Class1.class, Class2.class, Class3.class };
 
+        System.out.println("------ CLASSES AVEC @Controller -----");
         for (Class<?> cls : classes) {
             if (cls.isAnnotationPresent(Controller.class)) {
                 Controller controller = cls.getAnnotation(Controller.class);
-                String basePath = controller.value();
-                System.out.println("Controller: " + cls.getSimpleName() + " → " + basePath);
+                System.out.println("Controller: " + cls.getSimpleName() + " → " + controller.value());
+            }
+        }
 
-                for (Method m : cls.getDeclaredMethods()) {
-                    if (m.isAnnotationPresent(PathAnnotation.class)) {
-                        PathAnnotation path = m.getAnnotation(PathAnnotation.class);
-                        String fullPath = basePath + path.value();
-                        System.out.println("  → " + m.getName() + " : " + fullPath);
+        System.out.println("------ METHODES AVEC Mapping ------");
+        for (Class<?> cls : classes) {
+            for (Method m : cls.getDeclaredMethods()) {
+                if (m.isAnnotationPresent(PathAnnotation.class)) {
+                    PathAnnotation path = m.getAnnotation(PathAnnotation.class);
+                    String className = cls.getSimpleName();
+                    String methodName = m.getName();
+                    String fullPath = path.value();
+
+                   
+                    if (cls.isAnnotationPresent(Controller.class)) {
+                        Controller controller = cls.getAnnotation(Controller.class);
+                        fullPath = controller.value() + path.value();
                     }
+
+                    System.out.println("Méthode: " + className + "." + methodName + "() → " + fullPath);
                 }
-                System.out.println();
             }
         }
     }
 }
+
