@@ -1,6 +1,11 @@
-  #!/bin/bash
+#!/bin/bash
 
-  # Compile Main.java avec jakarta.ws.rs-api.jar
-  javac -cp "/home/olivia/Documents/sprint1/framework/dist/sprint1.jar:/home/olivia/Documents/lib/jakarta.ws.rs-api-3.1.0.jar" test/Main.java
+# Nettoyer les anciens .class
+rm -rf test/com
 
-  echo "Main.java compilé dans test/"
+# Compiler Employer.java et Main.java dans test/com/sprint1/
+javac -d test \
+  -cp "framework/dist/sprint1.jar" \
+  test/Employer.java test/Main.java
+
+echo "Employer et Main compilés → test/com/sprint1/"

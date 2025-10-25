@@ -1,10 +1,8 @@
 package com.sprint1;
 
-import jakarta.ws.rs.Path;
-
-@Path("/employer")
 public class Employer {
-    
+
+    @PathAnnotation("/employer")
     public String getDetails() {
         return "Employer details";
     }
