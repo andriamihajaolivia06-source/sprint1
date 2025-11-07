@@ -18,7 +18,6 @@ public class FrontServlet extends HttpServlet {
     private void servicePersonnalisee(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-       
         if (!initialized) {
             System.out.println("INITIALISATION : scan des routes...");
             scanRoutes();
@@ -29,10 +28,7 @@ public class FrontServlet extends HttpServlet {
         String fullUri = request.getRequestURI();
         String contextPath = request.getContextPath();
         String relativeUri = fullUri.substring(contextPath.length());
-
-        if (relativeUri.startsWith("/")) {
-            relativeUri = relativeUri.substring(1);
-        }
+        if (relativeUri.startsWith("/")) relativeUri = relativeUri.substring(1);
 
         String routePath = "/" + relativeUri;
         String normalized = normalizePath(routePath);
@@ -47,18 +43,38 @@ public class FrontServlet extends HttpServlet {
             try {
                 Object result = method.invoke(controller);
 
+               
+                if (result instanceof ModelView) {
+                    ModelView mv = (ModelView) result;
+                    String viewPath = "/" + mv.getView();
+
+                    System.out.println("DISPATCHER VERS : " + viewPath);
+
+                    if (getServletContext().getResource(viewPath) != null) {
+                        request.getRequestDispatcher(viewPath).forward(request, response);
+                    } else {
+                        response.sendError(404, "Vue introuvable : " + viewPath);
+                    }
+                    return;
+                }
+
+               
+                if (result instanceof String) {
+                    response.setContentType("text/html; charset=UTF-8");
+                    try (PrintWriter out = response.getWriter()) {
+                        out.println("<html><head><title>Résultat</title></head><body>");
+                        out.println("<h1 style='color:blue'>" + result + "</h1>");
+                        out.println("<p>URL : <strong>" + routePath + "</strong></p>");
+                        out.println("</body></html>");
+                    }
+                    return;
+                }
+
+              
                 response.setContentType("text/html; charset=UTF-8");
                 try (PrintWriter out = response.getWriter()) {
-                    out.println("<html><head><title>Résultat</title></head><body>");
-
-                    if (result instanceof String) {
-                       
-                        out.println("<h1 style='color:blue'>" + result + "</h1>");
-                    } else {
-                       
-                        out.println("<h1 style='color:green'>existe bien</h1>");
-                    }
-
+                    out.println("<html><head><title>OK</title></head><body>");
+                    out.println("<h1 style='color:green'>existe bien</h1>");
                     out.println("<p>URL : <strong>" + routePath + "</strong></p>");
                     out.println("</body></html>");
                 }
@@ -77,7 +93,6 @@ public class FrontServlet extends HttpServlet {
                 break;
             }
         }
-
         if (isPartialRoute) {
             response.setContentType("text/html; charset=UTF-8");
             try (PrintWriter out = response.getWriter()) {
@@ -89,9 +104,8 @@ public class FrontServlet extends HttpServlet {
             return;
         }
 
-        
+     
         String resourcePath = "/" + (relativeUri.isEmpty() ? "index.html" : relativeUri);
-
         if (getServletContext().getResource(resourcePath) != null) {
             if (resourcePath.endsWith(".jsp")) {
                 getServletContext().getNamedDispatcher("jsp").forward(request, response);
@@ -101,29 +115,21 @@ public class FrontServlet extends HttpServlet {
             return;
         }
 
-        
+ 
         response.setContentType("text/html; charset=UTF-8");
         try (PrintWriter out = response.getWriter()) {
-            out.println("<html>");
-            out.println("<head><title>FrontServlet</title></head>");
-            out.println("<body>");
+            out.println("<html><head><title>FrontServlet</title></head><body>");
             out.println("<h1>URL saisie : " + relativeUri + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
+            out.println("</body></html>");
         }
     }
 
-   
     private void scanRoutes() {
         try {
             String packageName = "com.sprint1";
             String path = packageName.replace('.', '/');
             URL resource = getServletContext().getClassLoader().getResource(path);
-
-            if (resource == null) {
-                System.out.println("ERREUR : package com.sprint1 non trouvé");
-                return;
-            }
+            if (resource == null) return;
 
             if (resource.getProtocol().equals("file")) {
                 File dir = new File(resource.toURI());
@@ -131,21 +137,18 @@ public class FrontServlet extends HttpServlet {
                     if (file.getName().endsWith(".class") && !file.getName().contains("$")) {
                         String className = packageName + "." + file.getName().replace(".class", "");
                         Class<?> cls = Class.forName(className);
-
                         if (cls.isAnnotationPresent(Controller.class)) {
                             Controller controller = cls.getAnnotation(Controller.class);
                             String basePath = controller.value();
-
-                            /
                             Object instance = cls.getDeclaredConstructor().newInstance();
                             controllers.put(cls.getName(), instance);
 
                             for (Method method : cls.getDeclaredMethods()) {
                                 if (method.isAnnotationPresent(PathAnnotation.class)) {
-                                    PathAnnotation pathAnnotation = method.getAnnotation(PathAnnotation.class);
-                                    String fullPath = normalizePath(basePath + pathAnnotation.value());
+                                    PathAnnotation pa = method.getAnnotation(PathAnnotation.class);
+                                    String fullPath = normalizePath(basePath + pa.value());
                                     routes.put(fullPath, method);
-                                    System.out.println("ROUTE : " + fullPath + " → " + method.getDeclaringClass().getSimpleName() + "." + method.getName() + "()");
+                                    System.out.println("ROUTE : " + fullPath + " → " + method.getName());
                                 }
                             }
                         }
