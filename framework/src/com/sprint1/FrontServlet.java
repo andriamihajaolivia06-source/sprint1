@@ -16,13 +16,13 @@ public class FrontServlet extends HttpServlet {
 
     @Override
     public void init() throws ServletException {
-        // Initialisation au premier appel dans servicePersonnalisee()
+        
     }
 
     private void servicePersonnalisee(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // === 1. INITIALISATION AU PREMIER APPEL ===
+      
         if (!initialized) {
             System.out.println("INITIALISATION : scan des routes...");
             scanRoutes();
@@ -43,7 +43,7 @@ public class FrontServlet extends HttpServlet {
 
         System.out.println("TEST URL : " + routePath + " → normalisé : " + normalized);
 
-        // === 2. ROUTE EXACTE : existe bien ===
+       
         if (routes.containsKey(normalized)) {
             System.out.println("ROUTE EXACTE TROUVÉE !");
             response.setContentType("text/html; charset=UTF-8");
@@ -77,7 +77,7 @@ public class FrontServlet extends HttpServlet {
             return;
         }
 
-        // === 4. FICHIER STATIQUE OU JSP ===
+        
         String resourcePath = "/" + (relativeUri.isEmpty() ? "index.html" : relativeUri);
 
         if (getServletContext().getResource(resourcePath) != null) {
@@ -90,7 +90,7 @@ public class FrontServlet extends HttpServlet {
             return;
         }
 
-        // === 5. 404 GÉNÉRIQUE : URL saisie ===
+        
         System.out.println("AUCUNE CORRESPONDANCE : URL saisie");
         response.setContentType("text/html; charset=UTF-8");
         try (PrintWriter out = response.getWriter()) {
@@ -103,7 +103,7 @@ public class FrontServlet extends HttpServlet {
         }
     }
 
-    // === SCAN DES ROUTES ===
+    
     private void scanRoutes() {
         try {
             String packageName = "com.sprint1";
@@ -144,7 +144,7 @@ public class FrontServlet extends HttpServlet {
         }
     }
 
-    // === NORMALISATION DES CHEMINS ===
+   
     private String normalizePath(String path) {
         return path.replaceAll("/+", "/").replaceAll("/$", "");
     }
