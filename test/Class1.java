@@ -13,7 +13,12 @@ public class Class1 {
         return "Voici les données demandées.";
     }
 
-  
+    @PathAnnotation("/page")
+    public ModelView showPage() {
+        ModelView mv = new ModelView();
+        mv.setView("aa.jsp");  
+        return mv;
+    }
 
     @PathAnnotation("/bye")
     public void sayBye() {
