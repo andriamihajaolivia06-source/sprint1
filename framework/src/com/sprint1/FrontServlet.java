@@ -123,9 +123,6 @@ public class FrontServlet extends HttpServlet {
             if (resource == null) {
                 System.out.println("ERREUR : package com.sprint1 non trouvé");
                 return;
-            }
-
-            if (resource.getProtocol().equals("file")) {
                 File dir = new File(resource.toURI());
                 for (File file : dir.listFiles()) {
                     if (file.getName().endsWith(".class") && !file.getName().contains("$")) {
