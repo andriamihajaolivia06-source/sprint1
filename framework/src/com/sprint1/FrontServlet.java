@@ -43,7 +43,6 @@ public class FrontServlet extends HttpServlet {
             try {
                 Object result = method.invoke(controller);
 
-                ]
                 if (result instanceof ModelView) {
                     ModelView mv = (ModelView) result;
                     String viewPath = "/" + mv.getView();
