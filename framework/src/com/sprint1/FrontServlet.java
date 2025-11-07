@@ -12,17 +12,13 @@ import java.util.*;
 public class FrontServlet extends HttpServlet {
 
     private static final Map<String, Method> routes = new HashMap<>();
+    private static final Map<String, Object> controllers = new HashMap<>();
     private static boolean initialized = false;
-
-    @Override
-    public void init() throws ServletException {
-        
-    }
 
     private void servicePersonnalisee(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-      
+       
         if (!initialized) {
             System.out.println("INITIALISATION : scan des routes...");
             scanRoutes();
@@ -45,28 +41,44 @@ public class FrontServlet extends HttpServlet {
 
        
         if (routes.containsKey(normalized)) {
-            System.out.println("ROUTE EXACTE TROUVÉE !");
-            response.setContentType("text/html; charset=UTF-8");
-            try (PrintWriter out = response.getWriter()) {
-                out.println("<html><head><title>OK</title></head><body>");
-                out.println("<h1 style='color:green'>existe bien</h1>");
-                out.println("<p>URL : <strong>" + routePath + "</strong></p>");
-                out.println("</body></html>");
+            Method method = routes.get(normalized);
+            Object controller = controllers.get(method.getDeclaringClass().getName());
+
+            try {
+                Object result = method.invoke(controller);
+
+                response.setContentType("text/html; charset=UTF-8");
+                try (PrintWriter out = response.getWriter()) {
+                    out.println("<html><head><title>Résultat</title></head><body>");
+
+                    if (result instanceof String) {
+                       
+                        out.println("<h1 style='color:blue'>" + result + "</h1>");
+                    } else {
+                       
+                        out.println("<h1 style='color:green'>existe bien</h1>");
+                    }
+
+                    out.println("<p>URL : <strong>" + routePath + "</strong></p>");
+                    out.println("</body></html>");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                response.sendError(500, "Erreur d'exécution");
             }
             return;
         }
 
-        // === 3. ROUTE PARTIELLE : n'existe pas (ex: /api sans /hello) ===
-        boolean isUnderKnownRoute = false;
+        
+        boolean isPartialRoute = false;
         for (String route : routes.keySet()) {
             if (normalized.startsWith(route + "/") || normalized.equals(route)) {
-                isUnderKnownRoute = true;
+                isPartialRoute = true;
                 break;
             }
         }
 
-        if (isUnderKnownRoute) {
-            System.out.println("ROUTE PARTIELLE : n'existe pas");
+        if (isPartialRoute) {
             response.setContentType("text/html; charset=UTF-8");
             try (PrintWriter out = response.getWriter()) {
                 out.println("<html><head><title>404</title></head><body>");
@@ -81,7 +93,6 @@ public class FrontServlet extends HttpServlet {
         String resourcePath = "/" + (relativeUri.isEmpty() ? "index.html" : relativeUri);
 
         if (getServletContext().getResource(resourcePath) != null) {
-            System.out.println("FICHIER STATIQUE TROUVÉ : " + resourcePath);
             if (resourcePath.endsWith(".jsp")) {
                 getServletContext().getNamedDispatcher("jsp").forward(request, response);
                 return;
@@ -91,7 +102,6 @@ public class FrontServlet extends HttpServlet {
         }
 
         
-        System.out.println("AUCUNE CORRESPONDANCE : URL saisie");
         response.setContentType("text/html; charset=UTF-8");
         try (PrintWriter out = response.getWriter()) {
             out.println("<html>");
@@ -103,36 +113,39 @@ public class FrontServlet extends HttpServlet {
         }
     }
 
-    
+   
     private void scanRoutes() {
         try {
             String packageName = "com.sprint1";
             String path = packageName.replace('.', '/');
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            Enumeration<URL> resources = classLoader.getResources(path);
+            URL resource = getServletContext().getClassLoader().getResource(path);
 
-            while (resources.hasMoreElements()) {
-                URL resource = resources.nextElement();
-                System.out.println("SCAN : " + resource);
-                if (resource.getProtocol().equals("file")) {
-                    File dir = new File(resource.toURI());
-                    for (File file : dir.listFiles()) {
-                        if (file.getName().endsWith(".class") && !file.getName().contains("$")) {
-                            String className = packageName + "." + file.getName().replace(".class", "");
-                            System.out.println("CLASSE TROUVÉE : " + className);
-                            Class<?> cls = Class.forName(className);
-                            if (cls.isAnnotationPresent(Controller.class)) {
-                                Controller controller = cls.getAnnotation(Controller.class);
-                                String basePath = controller.value();
-                                System.out.println("CONTROLLER : " + cls.getSimpleName() + " → " + basePath);
+            if (resource == null) {
+                System.out.println("ERREUR : package com.sprint1 non trouvé");
+                return;
+            }
 
-                                for (Method method : cls.getDeclaredMethods()) {
-                                    if (method.isAnnotationPresent(PathAnnotation.class)) {
-                                        PathAnnotation pathAnnotation = method.getAnnotation(PathAnnotation.class);
-                                        String fullPath = normalizePath(basePath + pathAnnotation.value());
-                                        routes.put(fullPath, method);
-                                        System.out.println("ROUTE AJOUTÉE : " + fullPath);
-                                    }
+            if (resource.getProtocol().equals("file")) {
+                File dir = new File(resource.toURI());
+                for (File file : dir.listFiles()) {
+                    if (file.getName().endsWith(".class") && !file.getName().contains("$")) {
+                        String className = packageName + "." + file.getName().replace(".class", "");
+                        Class<?> cls = Class.forName(className);
+
+                        if (cls.isAnnotationPresent(Controller.class)) {
+                            Controller controller = cls.getAnnotation(Controller.class);
+                            String basePath = controller.value();
+
+                            /
+                            Object instance = cls.getDeclaredConstructor().newInstance();
+                            controllers.put(cls.getName(), instance);
+
+                            for (Method method : cls.getDeclaredMethods()) {
+                                if (method.isAnnotationPresent(PathAnnotation.class)) {
+                                    PathAnnotation pathAnnotation = method.getAnnotation(PathAnnotation.class);
+                                    String fullPath = normalizePath(basePath + pathAnnotation.value());
+                                    routes.put(fullPath, method);
+                                    System.out.println("ROUTE : " + fullPath + " → " + method.getDeclaringClass().getSimpleName() + "." + method.getName() + "()");
                                 }
                             }
                         }
@@ -144,7 +157,6 @@ public class FrontServlet extends HttpServlet {
         }
     }
 
-   
     private String normalizePath(String path) {
         return path.replaceAll("/+", "/").replaceAll("/$", "");
     }

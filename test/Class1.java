@@ -4,8 +4,17 @@ package com.sprint1;
 public class Class1 {
 
     @PathAnnotation("/hello")
-    public void sayHello() {}
+    public String sayHello() {
+        return "Bonjour depuis le serveur !";
+    }
+
+    @PathAnnotation("/data")
+    public String getData() {
+        return "Voici les données demandées.";
+    }
 
     @PathAnnotation("/bye")
-    public void sayBye() {}
+    public void sayBye() {
+        System.out.println("Bye !");
+    }
 }
