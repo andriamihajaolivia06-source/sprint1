@@ -41,7 +41,7 @@ public class FrontServlet extends HttpServlet {
             return;
         }
 
-        // === 2. ROUTE AVEC {id} (ex: /okay/1, /okay/20, /okay/toto) ===
+        // === 2. ROUTE AVEC {id} (ex: /okay/1, /okay/20) ===
         for (String routeKey : routes.keySet()) {
             if (routeKey.contains("{id}")) {
                 String pattern = routeKey.replace("{id}", "[^/]+");
