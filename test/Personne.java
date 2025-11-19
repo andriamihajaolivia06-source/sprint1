@@ -11,10 +11,7 @@ public class Personne {
     }
 
     @PathAnnotation("/saluer")
-    public ModelView saluer(@RequestParam("nom") String name) {
-        ModelView mv = new ModelView();
-        mv.setView("resultat.jsp");
-        mv.setData("nom", name);
-        return mv;
+    public void saluer(@RequestParam("nom") String name) {
+
     }
 }
