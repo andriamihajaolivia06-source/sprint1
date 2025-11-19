@@ -35,62 +35,26 @@ public class FrontServlet extends HttpServlet {
 
         System.out.println("TEST URL : " + routePath + " → normalisé : " + normalized);
 
-      
+        // === 1. ROUTE EXACTE ===
         if (routes.containsKey(normalized)) {
-            Method method = routes.get(normalized);
-            Object controller = controllers.get(method.getDeclaringClass().getName());
-
-            try {
-                Object result = method.invoke(controller);
-
-               
-                if (result instanceof ModelView) {
-                    ModelView mv = (ModelView) result;
-                    String viewPath = "/" + mv.getView();
-                    System.out.println("DISPATCHER VERS : " + viewPath);
-
-                    
-                    for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
-                        request.setAttribute(entry.getKey(), entry.getValue());
-                        System.out.println("  Donnée : " + entry.getKey() + " = " + entry.getValue());
-                    }
-
-                    if (getServletContext().getResource(viewPath) != null) {
-                        request.getRequestDispatcher(viewPath).forward(request, response);
-                    } else {
-                        response.sendError(404, "Vue introuvable : " + viewPath);
-                    }
-                    return;
-                }
-
-             
-                if (result instanceof String) {
-                    response.setContentType("text/html; charset=UTF-8");
-                    try (PrintWriter out = response.getWriter()) {
-                        out.println("<html><head><title>Résultat</title></head><body>");
-                        out.println("<h1 style='color:blue'>" + result + "</h1>");
-                        out.println("<p>URL : <strong>" + routePath + "</strong></p>");
-                        out.println("</body></html>");
-                    }
-                    return;
-                }
-
-                
-                response.setContentType("text/html; charset=UTF-8");
-                try (PrintWriter out = response.getWriter()) {
-                    out.println("<html><head><title>OK</title></head><body>");
-                    out.println("<h1 style='color:green'>existe bien</h1>");
-                    out.println("<p>URL : <strong>" + routePath + "</strong></p>");
-                    out.println("</body></html>");
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-                response.sendError(500, "Erreur d'exécution : " + e.getCause());
-            }
+            executeRoute(normalized, request, response, routePath);
             return;
         }
 
-     
+        // === 2. ROUTE AVEC {id} (ex: /okay/1, /okay/20, /okay/toto) ===
+        for (String routeKey : routes.keySet()) {
+            if (routeKey.contains("{id}")) {
+                String pattern = routeKey.replace("{id}", "[^/]+");
+                pattern = pattern.replaceAll("/+", "/");
+                if (normalized.matches(pattern)) {
+                    System.out.println("MATCH {id} → " + routeKey);
+                    executeRoute(routeKey, request, response, routePath);
+                    return;
+                }
+            }
+        }
+
+        // === 3. ROUTE PARTIELLE : n'existe pas ===
         boolean isPartialRoute = false;
         for (String route : routes.keySet()) {
             if (normalized.startsWith(route + "/") || normalized.equals(route)) {
@@ -99,17 +63,11 @@ public class FrontServlet extends HttpServlet {
             }
         }
         if (isPartialRoute) {
-            response.setContentType("text/html; charset=UTF-8");
-            try (PrintWriter out = response.getWriter()) {
-                out.println("<html><head><title>404</title></head><body>");
-                out.println("<h1 style='color:red'>n'existe pas</h1>");
-                out.println("<p>URL : <strong>" + routePath + "</strong></p>");
-                out.println("</body></html>");
-            }
+            sendNotFound(response, routePath, "n'existe pas");
             return;
         }
 
-      
+        // === 4. FICHIER STATIQUE / JSP ===
         String resourcePath = "/" + (relativeUri.isEmpty() ? "index.html" : relativeUri);
         if (getServletContext().getResource(resourcePath) != null) {
             if (resourcePath.endsWith(".jsp")) {
@@ -120,7 +78,7 @@ public class FrontServlet extends HttpServlet {
             return;
         }
 
-       
+        // === 5. URL SAISIE ===
         response.setContentType("text/html; charset=UTF-8");
         try (PrintWriter out = response.getWriter()) {
             out.println("<html><head><title>FrontServlet</title></head><body>");
@@ -129,6 +87,72 @@ public class FrontServlet extends HttpServlet {
         }
     }
 
+    // === EXÉCUTION D'UNE ROUTE (exacte ou avec {id}) ===
+    private void executeRoute(String routeKey, HttpServletRequest request, HttpServletResponse response, String routePath)
+            throws ServletException, IOException {
+        Method method = routes.get(routeKey);
+        Object controller = controllers.get(method.getDeclaringClass().getName());
+
+        try {
+            Object result = method.invoke(controller);
+            handleResult(result, request, response, routePath);
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.sendError(500, "Erreur d'exécution");
+        }
+    }
+
+    // === GESTION DU RÉSULTAT (String, ModelView, void) ===
+    private void handleResult(Object result, HttpServletRequest request, HttpServletResponse response, String routePath)
+            throws ServletException, IOException {
+
+        if (result instanceof ModelView) {
+            ModelView mv = (ModelView) result;
+            String viewPath = "/" + mv.getView();
+
+            // Transfert des données
+            for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
+                request.setAttribute(entry.getKey(), entry.getValue());
+            }
+
+            if (getServletContext().getResource(viewPath) != null) {
+                request.getRequestDispatcher(viewPath).forward(request, response);
+            } else {
+                response.sendError(404, "Vue introuvable : " + viewPath);
+            }
+        }
+        else if (result instanceof String) {
+            response.setContentType("text/html; charset=UTF-8");
+            try (PrintWriter out = response.getWriter()) {
+                out.println("<html><head><title>Résultat</title></head><body>");
+                out.println("<h1 style='color:blue'>" + result + "</h1>");
+                out.println("<p>URL : <strong>" + routePath + "</strong></p>");
+                out.println("</body></html>");
+            }
+        }
+        else {
+            response.setContentType("text/html; charset=UTF-8");
+            try (PrintWriter out = response.getWriter()) {
+                out.println("<html><head><title>OK</title></head><body>");
+                out.println("<h1 style='color:green'>existe bien</h1>");
+                out.println("<p>URL : <strong>" + routePath + "</strong></p>");
+                out.println("</body></html>");
+            }
+        }
+    }
+
+    // === 404 PERSONNALISÉ ===
+    private void sendNotFound(HttpServletResponse response, String routePath, String message) throws IOException {
+        response.setContentType("text/html; charset=UTF-8");
+        try (PrintWriter out = response.getWriter()) {
+            out.println("<html><head><title>404</title></head><body>");
+            out.println("<h1 style='color:red'>" + message + "</h1>");
+            out.println("<p>URL : <strong>" + routePath + "</strong></p>");
+            out.println("</body></html>");
+        }
+    }
+
+    // === SCAN DES ROUTES ===
     private void scanRoutes() {
         try {
             String packageName = "com.sprint1";
@@ -153,7 +177,7 @@ public class FrontServlet extends HttpServlet {
                                     PathAnnotation pa = method.getAnnotation(PathAnnotation.class);
                                     String fullPath = normalizePath(basePath + pa.value());
                                     routes.put(fullPath, method);
-                                    System.out.println("ROUTE : " + fullPath + " → " + method.getName());
+                                    System.out.println("ROUTE : " + fullPath);
                                 }
                             }
                         }
