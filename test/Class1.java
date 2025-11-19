@@ -13,7 +13,7 @@ public class Class1 {
         return "Voici les données demandées.";
     }
 
-@PathAnnotation("/page")
+    @PathAnnotation("/page")
     public ModelView showPage() {
         ModelView mv = new ModelView();
         mv.setView("aa.jsp");
@@ -35,6 +35,10 @@ public class Class1 {
     public String ItsOkay() {
     return "How are you!";
     }
+
+    
+
+    
 
 }
 

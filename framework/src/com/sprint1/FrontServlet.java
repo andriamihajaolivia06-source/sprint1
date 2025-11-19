@@ -42,17 +42,26 @@ public class FrontServlet extends HttpServlet {
         }
 
         // === 2. ROUTE AVEC {id} (ex: /okay/1, /okay/20) ===
-        for (String routeKey : routes.keySet()) {
-            if (routeKey.contains("{id}")) {
-                String pattern = routeKey.replace("{id}", "[^/]+");
-                pattern = pattern.replaceAll("/+", "/");
-                if (normalized.matches(pattern)) {
-                    System.out.println("MATCH {id} → " + routeKey);
-                    executeRoute(routeKey, request, response, routePath);
-                    return;
+    for (String routeKey : routes.keySet()) {
+        if (routeKey.contains("{id}")) {
+            String pattern = routeKey.replace("{id}", "([^/]+)");
+            if (normalized.matches(pattern)) {
+                // EXTRAIRE L'ID
+                String[] urlParts = normalized.split("/");
+                String[] routeParts = routeKey.split("/");
+                for (int i = 0; i < routeParts.length; i++) {
+                    if ("{id}".equals(routeParts[i])) {
+                        String idValue = urlParts[i];
+                        request.setAttribute("id", idValue);  // L'id est disponible !
+                        System.out.println("ID capturé : " + idValue);
+                        break;
+                    }
                 }
+                executeRoute(routeKey, request, response, routePath);
+                return;
             }
         }
+    }
 
         // === 3. ROUTE PARTIELLE : n'existe pas ===
         boolean isPartialRoute = false;
@@ -88,19 +97,39 @@ public class FrontServlet extends HttpServlet {
     }
 
     // === EXÉCUTION D'UNE ROUTE (exacte ou avec {id}) ===
-    private void executeRoute(String routeKey, HttpServletRequest request, HttpServletResponse response, String routePath)
-            throws ServletException, IOException {
-        Method method = routes.get(routeKey);
-        Object controller = controllers.get(method.getDeclaringClass().getName());
+private void executeRoute(String routeKey, HttpServletRequest request, HttpServletResponse response, String routePath)
+        throws ServletException, IOException {
+    Method method = routes.get(routeKey);
+    Object controller = controllers.get(method.getDeclaringClass().getName());
 
-        try {
-            Object result = method.invoke(controller);
-            handleResult(result, request, response, routePath);
-        } catch (Exception e) {
-            e.printStackTrace();
-            response.sendError(500, "Erreur d'exécution");
+    try {
+        // Préparer les arguments
+        Class<?>[] paramTypes = method.getParameterTypes();
+        java.lang.annotation.Annotation[][] paramAnnotations = method.getParameterAnnotations();
+        Object[] args = new Object[paramTypes.length];
+
+        for (int i = 0; i < paramTypes.length; i++) {
+            RequestParam rp = null;
+            for (java.lang.annotation.Annotation ann : paramAnnotations[i]) {
+                if (ann instanceof RequestParam) {
+                    rp = (RequestParam) ann;
+                    break;
+                }
+            }
+            if (rp != null) {
+                String paramValue = request.getParameter(rp.value());
+                args[i] = paramValue;  // Injection automatique
+            }
         }
+
+        Object result = method.invoke(controller, args);
+        handleResult(result, request, response, routePath);
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        response.sendError(500, "Erreur : " + e.getMessage());
     }
+}
 
     // === GESTION DU RÉSULTAT (String, ModelView, void) ===
     private void handleResult(Object result, HttpServletRequest request, HttpServletResponse response, String routePath)
