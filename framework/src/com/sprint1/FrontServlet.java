@@ -35,7 +35,7 @@ public class FrontServlet extends HttpServlet {
 
         System.out.println("TEST URL : " + routePath + " → normalisé : " + normalized);
 
-       
+      
         if (routes.containsKey(normalized)) {
             Method method = routes.get(normalized);
             Object controller = controllers.get(method.getDeclaringClass().getName());
@@ -43,11 +43,17 @@ public class FrontServlet extends HttpServlet {
             try {
                 Object result = method.invoke(controller);
 
+               
                 if (result instanceof ModelView) {
                     ModelView mv = (ModelView) result;
                     String viewPath = "/" + mv.getView();
-
                     System.out.println("DISPATCHER VERS : " + viewPath);
+
+                    
+                    for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
+                        request.setAttribute(entry.getKey(), entry.getValue());
+                        System.out.println("  Donnée : " + entry.getKey() + " = " + entry.getValue());
+                    }
 
                     if (getServletContext().getResource(viewPath) != null) {
                         request.getRequestDispatcher(viewPath).forward(request, response);
@@ -57,7 +63,7 @@ public class FrontServlet extends HttpServlet {
                     return;
                 }
 
-               
+             
                 if (result instanceof String) {
                     response.setContentType("text/html; charset=UTF-8");
                     try (PrintWriter out = response.getWriter()) {
@@ -69,7 +75,7 @@ public class FrontServlet extends HttpServlet {
                     return;
                 }
 
-              
+                
                 response.setContentType("text/html; charset=UTF-8");
                 try (PrintWriter out = response.getWriter()) {
                     out.println("<html><head><title>OK</title></head><body>");
@@ -79,12 +85,12 @@ public class FrontServlet extends HttpServlet {
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                response.sendError(500, "Erreur d'exécution");
+                response.sendError(500, "Erreur d'exécution : " + e.getCause());
             }
             return;
         }
 
-       
+     
         boolean isPartialRoute = false;
         for (String route : routes.keySet()) {
             if (normalized.startsWith(route + "/") || normalized.equals(route)) {
@@ -103,7 +109,7 @@ public class FrontServlet extends HttpServlet {
             return;
         }
 
-       
+      
         String resourcePath = "/" + (relativeUri.isEmpty() ? "index.html" : relativeUri);
         if (getServletContext().getResource(resourcePath) != null) {
             if (resourcePath.endsWith(".jsp")) {
