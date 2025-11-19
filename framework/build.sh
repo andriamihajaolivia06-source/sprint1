@@ -10,7 +10,8 @@ javac -d bin \
   src/com/sprint1/PathAnnotation.java \
   src/com/sprint1/Controller.java \
   src/com/sprint1/ModelView.java \
-   src/com/sprint1/RequestParam.java
+  src/com/sprint1/RequestParam.java \
+  src/com/sprint1/ParamUtils.java
 
 # Création du JAR
 mkdir -p dist

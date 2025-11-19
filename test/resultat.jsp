@@ -1,134 +1,39 @@
-<!DOCTYPE html>
-<html lang="fr">
+<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Résultat</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .container {
-            background: white;
-            padding: 50px 40px;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 500px;
-            width: 100%;
-            text-align: center;
-            animation: fadeInScale 0.6s ease-out;
-        }
-
-        @keyframes fadeInScale {
-            from {
-                opacity: 0;
-                transform: scale(0.9);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-
-        .success-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0 auto 30px;
-            animation: scaleIn 0.5s ease-out 0.2s both;
-        }
-
-        @keyframes scaleIn {
-            from {
-                transform: scale(0);
-            }
-            to {
-                transform: scale(1);
-            }
-        }
-
-        .success-icon::before {
-            content: "✓";
-            color: white;
-            font-size: 50px;
-            font-weight: bold;
-        }
-
-        h1 {
-            color: #11998e;
-            font-size: 32px;
-            margin-bottom: 20px;
-            font-weight: 600;
-            animation: slideIn 0.5s ease-out 0.3s both;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        p {
-            color: #555;
-            font-size: 18px;
-            margin-bottom: 30px;
-            line-height: 1.6;
-            animation: slideIn 0.5s ease-out 0.4s both;
-        }
-
-        a {
-            display: inline-block;
-            padding: 15px 40px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            animation: slideIn 0.5s ease-out 0.5s both;
-        }
-
-        a:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
-        }
-
-        a:active {
-            transform: translateY(0);
-        }
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 80px; background: #f9f9f9; }
+        .container { padding: 40px; background: white; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: inline-block; }
+        .success { color: #27ae60; font-size: 32px; font-weight: bold; }
+        .error { color: #e74c3c; font-size: 32px; font-weight: bold; }
+        .detail { font-size: 18px; margin: 20px; color: #555; }
+        a { color: #3498db; text-decoration: none; font-size: 18px; }
+        a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="success-icon"></div>
-        <h1>Salut <%= request.getAttribute("nom") %> !</h1>
-        <p>Super, ton nom a bien ete reçu !</p>
-        <a href="/sprint1/personne/form">Recommencer</a>
-    </div>
+
+<div class="container">
+    <%
+        String status = (String) request.getAttribute("status");
+        String message = (String) request.getAttribute("message");
+        String detail = (String) request.getAttribute("detail");
+    %>
+
+    <% if ("success".equals(status)) { %>
+        <div class="success"><%= message %></div>
+        <p>Tout est bon !</p>
+    <% } else { %>
+        <div class="error"><%= message %></div>
+        <% if (detail != null) { %>
+            <div class="detail"><%= detail %></div>
+        <% } %>
+    <% } %>
+
+    <br><br>
+    <a href="/sprint1/personne/form">Recommencer</a>
+</div>
+
 </body>
 </html>

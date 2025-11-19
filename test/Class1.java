@@ -28,7 +28,7 @@ public class Class1 {
 
     @PathAnnotation("/bye")
     public void sayBye() {
-        System.out.println("Bye !");
+        System.out.println("Bye /hello!");
     }
 
     @PathAnnotation("/okay/{id}")
