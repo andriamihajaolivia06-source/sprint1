@@ -30,6 +30,12 @@ public class Class1 {
     public void sayBye() {
         System.out.println("Bye !");
     }
+
+    @PathAnnotation("/okay/{id}")
+    public String ItsOkay() {
+    return "How are you!";
+    }
+
 }
 
 
