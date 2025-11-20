@@ -11,7 +11,7 @@ public class Personne {
     }
 
     @PathAnnotation("/saluer")
-    public void saluer(@RequestParam("nom") String name) {
+    public void saluer(@RequestParam("cc") String name) {
 
     }
 }

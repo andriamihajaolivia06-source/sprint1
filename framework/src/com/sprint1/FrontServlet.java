@@ -109,9 +109,6 @@ private void executeRoute(String routeKey, HttpServletRequest request, HttpServl
         java.lang.annotation.Annotation[][] paramAnnotations = method.getParameterAnnotations();
         Object[] args = new Object[paramTypes.length];
 
-        boolean allParamsPresent = true;
-        String missingParamName = null;
-
         for (int i = 0; i < paramTypes.length; i++) {
             RequestParam rp = null;
             for (java.lang.annotation.Annotation ann : paramAnnotations[i]) {
@@ -128,43 +125,21 @@ private void executeRoute(String routeKey, HttpServletRequest request, HttpServl
                 if (ParamUtils.hasParam(request, paramName)) {
                     args[i] = ParamUtils.getParamValue(request, paramName);
                 } else {
-                    allParamsPresent = false;
-                    missingParamName = paramName;
-                    args[i] = null;
-                    // On arrête dès le premier paramètre manquant
-                    break;
+                    // Paramètre manquant → on peut gérer l'erreur ici si tu veux
+                    args[i] = null; // ou lancer une exception, ou rediriger
                 }
             }
-            // Si pas d'annotation → on laisse null (ou on peut ignorer)
+            // Si pas de @RequestParam → args[i] reste null (ou on peut ignorer)
         }
 
-        // On prépare les attributs pour resultat.jsp
-        if (allParamsPresent) {
-            request.setAttribute("message", "Cette valeur existe");
-            request.setAttribute("status", "success");
-            // On exécute quand même la méthode si tu veux faire un traitement
-            Object result = method.invoke(controller, args);
-            // Si la méthode retourne un ModelView, on le gère normalement
-            if (result instanceof ModelView) {
-                handleResult(result, request, response, routePath);
-                return;
-            }
-        } else {
-            request.setAttribute("message", "Cette valeur ne correspond pas");
-            request.setAttribute("status", "error");
-            request.setAttribute("detail", "Le paramètre attendu est : <strong>" + missingParamName + "</strong>");
-        }
-
-        // On affiche toujours resultat.jsp
-        request.getRequestDispatcher("/resultat.jsp").forward(request, response);
+        Object result = method.invoke(controller, args);
+        handleResult(result, request, response, routePath);
 
     } catch (Exception e) {
         e.printStackTrace();
-        request.setAttribute("message", "Cette valeur ne correspond pas");
-        request.setAttribute("status", "error");
-        request.setAttribute("detail", "Erreur interne du serveur");
-        request.getRequestDispatcher("/resultat.jsp").forward(request, response);
+        response.sendError(500, "Erreur : " + e.getMessage());
     } finally {
+        // Nettoyage du cache pour éviter les fuites mémoire
         ParamUtils.clearCache(request);
     }
 }

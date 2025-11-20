@@ -36,10 +36,8 @@ public class Class1 {
     return "How are you!";
     }
 
-    
-
-    
-
 }
+
+
 
 
