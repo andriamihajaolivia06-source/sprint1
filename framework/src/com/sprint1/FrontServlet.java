@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.net.URL;
 import java.util.*;
 
@@ -104,68 +105,48 @@ private void executeRoute(String routeKey, HttpServletRequest request, HttpServl
     Object controller = controllers.get(method.getDeclaringClass().getName());
 
     try {
-        // Préparer les arguments
-        Class<?>[] paramTypes = method.getParameterTypes();
-        java.lang.annotation.Annotation[][] paramAnnotations = method.getParameterAnnotations();
-        Object[] args = new Object[paramTypes.length];
+        Parameter[] parameters = method.getParameters();
+        Object[] args = new Object[parameters.length];
 
-        boolean allParamsPresent = true;
-        String missingParamName = null;
-
-        for (int i = 0; i < paramTypes.length; i++) {
-            RequestParam rp = null;
-            for (java.lang.annotation.Annotation ann : paramAnnotations[i]) {
-                if (ann instanceof RequestParam) {
-                    rp = (RequestParam) ann;
-                    break;
-                }
-            }
+        // VÉRIFICATION + INJECTION
+        for (int i = 0; i < parameters.length; i++) {
+            Parameter param = parameters[i];
+            RequestParam rp = param.getAnnotation(RequestParam.class);
 
             if (rp != null) {
-                String paramName = rp.value();
+                args[i] = request.getParameter(rp.value());
+            } else {
+                if (param.isNamePresent()) {
+                    String expectedName = param.getName();
+                    String value = request.getParameter(expectedName);
 
-                // ON UTILISE UNIQUEMENT ParamUtils → ZÉRO request.getParameter()
-                if (ParamUtils.hasParam(request, paramName)) {
-                    args[i] = ParamUtils.getParamValue(request, paramName);
-                } else {
-                    allParamsPresent = false;
-                    missingParamName = paramName;
-                    args[i] = null;
-                    // On arrête dès le premier paramètre manquant
-                    break;
+                    if (value == null) {
+                        // NOM INCORRECT → ON BLOQUE TOUT
+                        request.setAttribute("error", "incorrecte");
+                        request.setAttribute("errorMessage", 
+                            "Le champ du formulaire doit avoir exactement <strong>name=\"" + expectedName + "\"</strong><br>" +
+                            "Mais vous avez utilisé un autre nom ou aucun champ.");
+                        request.getRequestDispatcher("/resultat.jsp").forward(request, response);
+                        return; // ON SORT COMPLÈTEMENT
+                    }
+                    args[i] = value;
                 }
             }
-            // Si pas d'annotation → on laisse null (ou on peut ignorer)
         }
 
-        // On prépare les attributs pour resultat.jsp
-        if (allParamsPresent) {
-            request.setAttribute("message", "Cette valeur existe");
-            request.setAttribute("status", "success");
-            // On exécute quand même la méthode si tu veux faire un traitement
-            Object result = method.invoke(controller, args);
-            // Si la méthode retourne un ModelView, on le gère normalement
-            if (result instanceof ModelView) {
-                handleResult(result, request, response, routePath);
-                return;
-            }
-        } else {
-            request.setAttribute("message", "Cette valeur ne correspond pas");
-            request.setAttribute("status", "error");
-            request.setAttribute("detail", "Le paramètre attendu est : <strong>" + missingParamName + "</strong>");
-        }
+        // TOUT EST BON → on exécute la méthode
+        Object result = method.invoke(controller, args);
 
-        // On affiche toujours resultat.jsp
-        request.getRequestDispatcher("/resultat.jsp").forward(request, response);
+        // On gère le résultat normalement
+        handleResult(result, request, response, routePath);
 
     } catch (Exception e) {
+        // ON NE FAIT PLUS DE FORWARD ICI SI ON A DÉJÀ AFFICHÉ L'ERREUR
+        // Sinon on écrase le message "incorrecte"
         e.printStackTrace();
-        request.setAttribute("message", "Cette valeur ne correspond pas");
-        request.setAttribute("status", "error");
-        request.setAttribute("detail", "Erreur interne du serveur");
+        request.setAttribute("error", "incorrecte");
+        request.setAttribute("errorMessage", "Erreur interne : " + e.getMessage());
         request.getRequestDispatcher("/resultat.jsp").forward(request, response);
-    } finally {
-        ParamUtils.clearCache(request);
     }
 }
 
