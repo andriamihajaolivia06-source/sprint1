@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.net.URL;
 import java.util.*;
 
@@ -104,32 +105,48 @@ private void executeRoute(String routeKey, HttpServletRequest request, HttpServl
     Object controller = controllers.get(method.getDeclaringClass().getName());
 
     try {
-        // Préparer les arguments
-        Class<?>[] paramTypes = method.getParameterTypes();
-        java.lang.annotation.Annotation[][] paramAnnotations = method.getParameterAnnotations();
-        Object[] args = new Object[paramTypes.length];
+        Parameter[] parameters = method.getParameters();
+        Object[] args = new Object[parameters.length];
 
-        for (int i = 0; i < paramTypes.length; i++) {
-            RequestParam rp = null;
-            for (java.lang.annotation.Annotation ann : paramAnnotations[i]) {
-                if (ann instanceof RequestParam) {
-                    rp = (RequestParam) ann;
-                    break;
-                }
+        for (int i = 0; i < parameters.length; i++) {
+            Parameter param = parameters[i];
+            RequestParam rp = param.getAnnotation(RequestParam.class);
+
+            String paramName;
+
+            // 1. SI @RequestParam existe → on l'utilise
+            if (rp != null && !rp.value().isEmpty()) {
+                paramName = rp.value();
             }
-
-            if (rp != null) {
-                String paramName = rp.value();
-
-                // ON UTILISE UNIQUEMENT ParamUtils → ZÉRO request.getParameter()
-                if (ParamUtils.hasParam(request, paramName)) {
-                    args[i] = ParamUtils.getParamValue(request, paramName);
+            // 2. SINON → on suppose que le nom du paramètre = nom de la variable
+            //     même si c'est "arg0", on va deviner avec l'ordre des paramètres du formulaire
+            else {
+                // On prend le i-ème paramètre du formulaire (ordre d'apparition)
+                Enumeration<String> names = request.getParameterNames();
+                String foundName = null;
+                int count = 0;
+                while (names.hasMoreElements() && count <= i) {
+                    foundName = names.nextElement();
+                    count++;
+                }
+                if (foundName != null) {
+                    paramName = foundName;
                 } else {
-                    // Paramètre manquant → on peut gérer l'erreur ici si tu veux
-                    args[i] = null; // ou lancer une exception, ou rediriger
+                    paramName = "param" + i; // fallback
                 }
             }
-            // Si pas de @RequestParam → args[i] reste null (ou on peut ignorer)
+
+            String value = request.getParameter(paramName);
+
+            if (value == null || value.isEmpty()) {
+                request.setAttribute("error", "incorrecte");
+                request.setAttribute("errorMessage", 
+                    "Le champ <strong>name=\"" + paramName + "\"</strong> est manquant ou vide.");
+                request.getRequestDispatcher("/resultat.jsp").forward(request, response);
+                return;
+            }
+
+            args[i] = value;
         }
 
         Object result = method.invoke(controller, args);
@@ -137,13 +154,11 @@ private void executeRoute(String routeKey, HttpServletRequest request, HttpServl
 
     } catch (Exception e) {
         e.printStackTrace();
-        response.sendError(500, "Erreur : " + e.getMessage());
-    } finally {
-        // Nettoyage du cache pour éviter les fuites mémoire
-        ParamUtils.clearCache(request);
+        request.setAttribute("error", "incorrecte");
+        request.setAttribute("errorMessage", "Erreur interne : " + e.getMessage());
+        request.getRequestDispatcher("/resultat.jsp").forward(request, response);
     }
 }
-
     // === GESTION DU RÉSULTAT (String, ModelView, void) ===
     private void handleResult(Object result, HttpServletRequest request, HttpServletResponse response, String routePath)
             throws ServletException, IOException {
