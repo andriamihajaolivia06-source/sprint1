@@ -7,6 +7,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.util.HashMap;
 import java.net.URL;
 import java.util.*;
 
@@ -108,55 +111,97 @@ private void executeRoute(String routeKey, HttpServletRequest request, HttpServl
         Parameter[] parameters = method.getParameters();
         Object[] args = new Object[parameters.length];
 
+        // === CORRECTION CRUCIALE : on ne prend que la partie après le context path ===
+        String fullUri = request.getRequestURI();                    // ex: /sprint1/personne/good/777
+        String contextPath = request.getContextPath();                // ex: /sprint1
+        String uri = fullUri.substring(contextPath.length());         // → /personne/good/777
+
+        // === EXTRACTION DES PATH VARIABLES AVEC REGEX (MAGIE) ===
+        Map<String, String> pathVariables = new HashMap<>();
+
+        String regex = routeKey.replaceAll("\\{[^/]+\\}", "([^/]+)");
+        regex = "^" + regex + "$";  // ex: ^/good/([^/]+)$
+
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(uri);  // ← ON UTILISE "uri", PAS request.getRequestURI()
+
+        if (matcher.matches()) {
+            Pattern varPattern = Pattern.compile("\\{([^}]+)\\}");
+            Matcher varMatcher = varPattern.matcher(routeKey);
+
+            int groupIndex = 1;
+            while (varMatcher.find()) {
+                String varName = varMatcher.group(1);
+                if (groupIndex <= matcher.groupCount()) {
+                    pathVariables.put(varName, matcher.group(groupIndex));
+                }
+                groupIndex++;
+            }
+        }
+
+        // Debug temporaire (tu peux l'enlever après)
+        System.out.println("URI utilisée : " + uri);
+        System.out.println("RouteKey : " + routeKey);
+        System.out.println("PathVariables trouvés : " + pathVariables);
+
         for (int i = 0; i < parameters.length; i++) {
             Parameter param = parameters[i];
             RequestParam rp = param.getAnnotation(RequestParam.class);
 
-            String paramName;
+            String value = null;
 
-            // 1. SI @RequestParam existe → on l'utilise
             if (rp != null && !rp.value().isEmpty()) {
-                paramName = rp.value();
-            }
-            // 2. SINON → on suppose que le nom du paramètre = nom de la variable
-            //     même si c'est "arg0", on va deviner avec l'ordre des paramètres du formulaire
-            else {
-                // On prend le i-ème paramètre du formulaire (ordre d'apparition)
-                Enumeration<String> names = request.getParameterNames();
-                String foundName = null;
-                int count = 0;
-                while (names.hasMoreElements() && count <= i) {
-                    foundName = names.nextElement();
-                    count++;
-                }
-                if (foundName != null) {
-                    paramName = foundName;
-                } else {
-                    paramName = "param" + i; // fallback
-                }
-            }
+                value = request.getParameter(rp.value());
+            } else {
+                String paramName = param.getName();
 
-            String value = request.getParameter(paramName);
+                if (pathVariables.containsKey(paramName)) {
+                    value = pathVariables.get(paramName);
+                } else if (!paramName.startsWith("arg")) {
+                    value = request.getParameter(paramName);
+                } else {
+                    int index = 0;
+                    for (String val : pathVariables.values()) {
+                        if (index == i) {
+                            value = val;
+                            break;
+                        }
+                        index++;
+                    }
+                }
+            }
 
             if (value == null || value.isEmpty()) {
-                request.setAttribute("error", "incorrecte");
-                request.setAttribute("errorMessage", 
-                    "Le champ <strong>name=\"" + paramName + "\"</strong> est manquant ou vide.");
-                request.getRequestDispatcher("/resultat.jsp").forward(request, response);
-                return;
+                if (rp != null && !rp.value().isEmpty()) {
+                    request.setAttribute("error", "incorrecte");
+                    request.setAttribute("errorMessage", "Le champ <strong>name=\"" + rp.value() + "\"</strong> est manquant.");
+                    request.getRequestDispatcher("/resultat.jsp").forward(request, response);
+                    return;
+                }
+                value = "";
             }
 
             args[i] = value;
         }
 
         Object result = method.invoke(controller, args);
-        handleResult(result, request, response, routePath);
+
+        if (result instanceof String) {
+            response.setContentType("text/html; charset=UTF-8");
+            PrintWriter out = response.getWriter();
+            out.println("<!DOCTYPE html>");
+            out.println("<html><head><meta charset='UTF-8'><title>ID Capturé</title></head>");
+            out.println("<body style='font-family:Arial;text-align:center;margin-top:150px;background:#e8f5e9;'>");
+            out.println("<h1 style='color:#1b5e20;font-size:60px;'>" + result + "</h1>");
+            out.println("<p><a href='/sprint1/personne/form' style='color:#2e7d32;font-size:22px;text-decoration:none;'>Retour</a></p>");
+            out.println("</body></html>");
+        } else {
+            handleResult(result, request, response, routePath);
+        }
 
     } catch (Exception e) {
         e.printStackTrace();
-        request.setAttribute("error", "incorrecte");
-        request.setAttribute("errorMessage", "Erreur interne : " + e.getMessage());
-        request.getRequestDispatcher("/resultat.jsp").forward(request, response);
+        response.getWriter().println("<h1 style='color:red;'>Erreur : " + e.getMessage() + "</h1>");
     }
 }
     // === GESTION DU RÉSULTAT (String, ModelView, void) ===
