@@ -36,7 +36,12 @@ public class Class1 {
     return "How are you!";
     }
 
+    @PathAnnotation("/good/{id}")
+    public String saygood(String id) {
+        return "ID capturé : <strong>" + id + "</strong> → Tout est parfait !";
+    }
 }
+
 
 
 

@@ -69,7 +69,7 @@
 <body>
     <div class="container">
         <h2>Entre ton nom</h2>
-        <form action="/sprint1/personne/test3" method="post">
+        <form action="/sprint1/personne/test2" method="post">
             <input type="text" name="nom" placeholder="Ton nom" required />
             <button type="submit">Envoyer</button>
         </form>
