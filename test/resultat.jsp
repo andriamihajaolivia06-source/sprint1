@@ -3,36 +3,39 @@
 <head>
     <title>Résultat</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 80px; background: #f9f9f9; }
-        .container { padding: 40px; background: white; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: inline-block; }
-        .success { color: #27ae60; font-size: 32px; font-weight: bold; }
-        .error { color: #e74c3c; font-size: 32px; font-weight: bold; }
-        .detail { font-size: 18px; margin: 20px; color: #555; }
-        a { color: #3498db; text-decoration: none; font-size: 18px; }
-        a:hover { text-decoration: underline; }
+        body { font-family: Arial; text-align: center; margin-top: 60px; background: #f5f5f5; }
+        .box { padding: 30px; background: white; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: inline-block; }
+        h1 { font-size: 40px; margin: 10px; }
+        .success { color: #27ae60; }
+        .error { color: #e74c3c; }
+        .info { background: #f0f0f0; padding: 15px; border-radius: 10px; margin: 20px; font-family: monospace; }
+        a { color: #3498db; font-size: 18px; text-decoration: none; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <%
-        String status = (String) request.getAttribute("status");
-        String message = (String) request.getAttribute("message");
-        String detail = (String) request.getAttribute("detail");
+<div class="box">
+    <% 
+        String error = (String) request.getAttribute("error");
+        String nom = (String) request.getAttribute("nom");
+        String age = (String) request.getAttribute("age");
+        String email = (String) request.getAttribute("email");
+        String methode = (String) request.getAttribute("methode");
     %>
 
-    <% if ("success".equals(status)) { %>
-        <div class="success"><%= message %></div>
-        <p>Tout est bon !</p>
+    <% if ("incorrecte".equals(error)) { %>
+        <h1 class="error">incorrecte</h1>
+        <div class="info"><%= request.getAttribute("errorMessage") %></div>
     <% } else { %>
-        <div class="error"><%= message %></div>
-        <% if (detail != null) { %>
-            <div class="detail"><%= detail %></div>
-        <% } %>
+        <h1 class="success">Salut <%= nom != null ? nom : "Inconnu" %> !</h1>
+        <% if (age != null) { %><p>Âge : <%= age %></p><% } %>
+        <% if (email != null) { %><p>Email : <%= email %></p><% } %>
+        <div class="info"><%= methode != null ? methode : "Méthode inconnue" %></div>
+        <p style="color:green; font-weight:bold;">Super, tout a été reçu correctement !</p>
     <% } %>
 
     <br><br>
-    <a href="/sprint1/personne/form">Recommencer</a>
+    <a href="/sprint1/personne/form">← Retour au formulaire</a>
 </div>
 
 </body>

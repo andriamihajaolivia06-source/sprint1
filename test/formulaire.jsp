@@ -4,104 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Formulaire</title>
+
     <style>
-        * {
+        body {
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 20px;
+            height: 100vh;
         }
 
         .container {
             background: white;
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 400px;
-            width: 100%;
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            width: 350px;
+            text-align: center;
         }
 
         h2 {
-            color: #11998e;
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 28px;
-            font-weight: 600;
-        }
-
-        form {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: 500;
         }
 
         input[type="text"] {
-            padding: 15px 20px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: all 0.3s ease;
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 15px;
             outline: none;
+            transition: 0.2s;
         }
 
         input[type="text"]:focus {
-            border-color: #11998e;
-            box-shadow: 0 0 0 3px rgba(17, 153, 142, 0.1);
-        }
-
-        input[type="text"]::placeholder {
-            color: #999;
+            border-color: #4f46e5;
+            box-shadow: 0 0 4px rgba(79,70,229,0.3);
         }
 
         button {
-            padding: 15px 30px;
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            margin-top: 15px;
+            width: 100%;
+            background: #4f46e5;
             color: white;
+            padding: 12px;
             border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
+            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            font-size: 15px;
+            transition: 0.2s;
         }
 
         button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(17, 153, 142, 0.4);
-        }
-
-        button:active {
-            transform: translateY(0);
+            background: #3730a3;
         }
     </style>
+
 </head>
 <body>
     <div class="container">
         <h2>Entre ton nom</h2>
-        <form action="/sprint1/personne/saluer" method="post">
+        <form action="/sprint1/personne/test3" method="post">
             <input type="text" name="nom" placeholder="Ton nom" required />
             <button type="submit">Envoyer</button>
         </form>
