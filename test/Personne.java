@@ -37,6 +37,52 @@ public class Personne {
         return mv;
     }
 
+    @GetUrl("/formulaire")
+    public ModelView showForm() {
+        ModelView mv = new ModelView();
+        mv.setView("test.jsp");
+        return mv;
+    }
+
+
+    @PostUrl("/save")
+    public ModelView savePersonne(
+            @RequestParam("nom") String nom,
+            @RequestParam("age") String ageStr) {
+
+        if (nom == null || nom.trim().isEmpty()) {
+            ModelView mv = new ModelView();
+            mv.setView("test.jsp");
+            mv.setData("error", "Le nom est obligatoire !");
+            return mv;
+        }
+
+        int age;
+        try {
+            age = Integer.parseInt(ageStr.trim());
+            if (age < 0 || age > 150) throw new Exception();
+        } catch (Exception e) {
+            ModelView mv = new ModelView();
+            mv.setView("test.jsp");
+            mv.setData("error", "Âge invalide ! Doit être entre 0 et 150.");
+            mv.setData("nom", nom);
+            return mv;
+        }
+
+        ModelView mv = new ModelView();
+        mv.setView("result.jsp");
+        mv.setData("message", "Personne sauvegardée avec succès !");
+        mv.setData("nom", nom);
+        mv.setData("age", age);
+        return mv;
+    }
+
+
+    @GetUrl("/bonjour")
+    public String direBonjour() {
+        return "Bonjour <3";
+    }
+
     
 
 }
