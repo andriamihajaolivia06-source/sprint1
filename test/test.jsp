@@ -77,10 +77,6 @@
         <button type="submit">Envoyer</button>
     </form>
 
-    <br>
-    <!-- <p style="text-align:center;">
-        <a href="/sprint1/personne/bonjour/777" style="color:#667eea;">Tester GET avec ID 777</a>
-    </p> -->
 </div>
 </body>
 </html>
