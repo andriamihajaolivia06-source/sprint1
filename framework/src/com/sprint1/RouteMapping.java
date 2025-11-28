@@ -3,7 +3,7 @@ package com.sprint1;
 import java.lang.reflect.Method;
 
 public class RouteMapping {
-    public final String httpMethod;  // "GET", "POST" ou "ANY"
+    public final String httpMethod;
     public final String path;
     public final Method method;
     public final Object controller;
