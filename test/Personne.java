@@ -1,4 +1,5 @@
 package com.sprint1;
+import java.util.Map;
 
 @Controller("/personne")
 public class Personne {
@@ -81,6 +82,26 @@ public class Personne {
     @GetUrl("/bonjour")
     public String direBonjour() {
         return "Bonjour <3";
+    }
+
+
+    @GetUrl("/ftest")
+    public ModelView Form() {
+        ModelView mv = new ModelView();
+        mv.setView("FormulaireTest.jsp");
+        return mv;
+    }
+
+
+    @PostUrl("/savePersonne")
+    public ModelView savePersonne(Map<String, Object> form) {
+        ModelView mv = new ModelView("ResultatTest.jsp");
+        
+        // Utilisez setData() au lieu de addObject()
+        mv.setData("form", form);
+        mv.setData("message", "Données reçues avec succès !");
+        
+        return mv;
     }
 
     
