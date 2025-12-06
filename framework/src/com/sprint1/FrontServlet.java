@@ -10,7 +10,6 @@ import java.util.regex.*;
 
 public class FrontServlet extends HttpServlet {
 
-
     private static final List<RouteMapping> routes = new ArrayList<>();
     private static final Map<String, Object> controllers = new HashMap<>();
     private static boolean initialized = false;
@@ -59,7 +58,6 @@ public class FrontServlet extends HttpServlet {
                 String pattern = r.path.replaceAll("\\{[^/]+\\}", "([^/]+)");
                 pattern = "^" + pattern + "$";
                 if (normalized.matches(pattern)) {
-                    // Extraire les variables
                     Matcher matcher = Pattern.compile(pattern).matcher(normalized);
                     if (matcher.matches()) {
                         Matcher varMatcher = Pattern.compile("\\{([^}]+)\\}").matcher(r.path);
@@ -136,8 +134,46 @@ public class FrontServlet extends HttpServlet {
                 }
             }
 
+            // === NOUVELLE FONCTIONNALITÉ POUR Map<String, Object> ===
             for (int i = 0; i < parameters.length; i++) {
                 Parameter param = parameters[i];
+
+                // SI LE PARAMÈTRE EST Map<String, Object> → ON LE REMPLIT AUTOMATIQUEMENT
+                if (Map.class.isAssignableFrom(param.getType())) {
+                    Type genericType = param.getParameterizedType();
+                    if (genericType instanceof ParameterizedType pt
+                            && pt.getActualTypeArguments().length == 2
+                            && pt.getActualTypeArguments()[0] == String.class
+                            && pt.getActualTypeArguments()[1] == Object.class) {
+
+                        Map<String, Object> formData = new HashMap<>();
+                        Enumeration<String> paramNames = request.getParameterNames();
+                        
+                        while (paramNames.hasMoreElements()) {
+                            String name = paramNames.nextElement();
+                            String[] values = request.getParameterValues(name);
+                            
+                            // Gestion spéciale pour les paramètres multiples (checkbox, select multiple)
+                            if (values != null && values.length > 1) {
+                                // Pour les checkbox avec plusieurs valeurs sélectionnées
+                                formData.put(name, values);
+                            } 
+                            // Si une seule valeur non vide
+                            else if (values != null && values.length == 1 && !values[0].isEmpty()) {
+                                formData.put(name, values[0]);
+                            }
+                            // Si vide ou null
+                            else {
+                                formData.put(name, "");
+                            }
+                        }
+                        
+                        args[i] = formData;
+                        continue; // on passe au paramètre suivant
+                    }
+                }
+
+                // === CODE ORIGINAL (RequestParam, path variables, etc.) ===
                 RequestParam rp = param.getAnnotation(RequestParam.class);
                 String value = null;
                 if (rp != null && !rp.value().isEmpty()) {
@@ -170,6 +206,7 @@ public class FrontServlet extends HttpServlet {
                 }
                 args[i] = value;
             }
+            // === FIN DE LA BOUCLE ===
 
             Object result = method.invoke(controller, args);
             if (result instanceof String) {
@@ -190,15 +227,34 @@ public class FrontServlet extends HttpServlet {
         }
     }
 
-    // TES MÉTHODES ORIGINALES 100 % INTACTES
     private void handleResult(Object result, HttpServletRequest request, HttpServletResponse response, String routePath)
             throws ServletException, IOException {
         if (result instanceof ModelView) {
             ModelView mv = (ModelView) result;
             String viewPath = "/" + mv.getView();
+            
+            // Ajouter les données du ModelView à la requête
             for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
                 request.setAttribute(entry.getKey(), entry.getValue());
             }
+            
+            // DEBUG: Afficher les données transmises
+            System.out.println("=== TRANSMISSION À LA JSP ===");
+            Enumeration<String> attrNames = request.getAttributeNames();
+            while (attrNames.hasMoreElements()) {
+                String attrName = attrNames.nextElement();
+                Object attrValue = request.getAttribute(attrName);
+                System.out.println(attrName + " = " + attrValue);
+                if (attrValue != null && attrValue.getClass().isArray()) {
+                    System.out.println("  Type: " + attrValue.getClass().getName());
+                    Object[] array = (Object[]) attrValue;
+                    System.out.println("  Longueur: " + array.length);
+                    for (Object item : array) {
+                        System.out.println("  - " + item);
+                    }
+                }
+            }
+            
             if (getServletContext().getResource(viewPath) != null) {
                 request.getRequestDispatcher(viewPath).forward(request, response);
             } else {
@@ -279,6 +335,26 @@ public class FrontServlet extends HttpServlet {
             }
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+    
+    // Classe interne pour stocker les informations de route
+    private static class RouteMapping {
+        String httpMethod;
+        String path;
+        Method method;
+        Object controller;
+        
+        RouteMapping(String httpMethod, String path, Method method, Object controller) {
+            this.httpMethod = httpMethod;
+            this.path = path;
+            this.method = method;
+            this.controller = controller;
+        }
+        
+        @Override
+        public String toString() {
+            return httpMethod + " " + path + " -> " + method.getName();
         }
     }
 }
