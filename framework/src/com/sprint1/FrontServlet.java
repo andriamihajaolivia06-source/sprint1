@@ -223,6 +223,7 @@ public class FrontServlet extends HttpServlet {
             throws ServletException, IOException {
         Method method = mapping.method;
         Object controller = controllers.get(method.getDeclaringClass().getName());
+        
         try {
             Parameter[] parameters = method.getParameters();
             Object[] args = new Object[parameters.length];
@@ -288,7 +289,6 @@ public class FrontServlet extends HttpServlet {
                 }
 
                 // 2. SI C'EST UN OBJET COMPLEXE (Eleve, Note, etc.)
-                // Vérifie si c'est une classe custom (pas primitive, pas String, pas wrapper)
                 if (!paramType.isPrimitive() && 
                     !paramType.isArray() && 
                     !paramType.equals(String.class) &&
@@ -359,7 +359,6 @@ public class FrontServlet extends HttpServlet {
                     }
                 } else if (paramType == double.class || paramType == Double.class) {
                     try {
-                        // Gérer les virgules
                         String normalizedValue = value.replace(',', '.');
                         args[i] = Double.parseDouble(normalizedValue);
                     } catch (NumberFormatException e) {
@@ -381,13 +380,12 @@ public class FrontServlet extends HttpServlet {
                         args[i] = 0L;
                     }
                 } else {
-                    args[i] = value; // Par défaut, chaîne
+                    args[i] = value;
                 }
                 
                 System.out.println("Valeur finale: " + args[i] + " (type: " + 
                     (args[i] != null ? args[i].getClass().getName() : "null") + ")");
             }
-            // === FIN DE LA BOUCLE ===
 
             // DEBUG: Afficher tous les arguments
             System.out.println("=== ARGUMENTS FINAUX ===");
@@ -396,10 +394,24 @@ public class FrontServlet extends HttpServlet {
                     (args[i] != null ? args[i].getClass().getName() + " = " + args[i] : "null"));
             }
 
+            // VÉRIFIER SI LA MÉTHODE A L'ANNOTATION @Json
+            boolean isJsonResponse = JsonResponseHandler.isJsonResponse(method);
+            if (isJsonResponse) {
+                System.out.println("Méthode annotée avec @Json détectée");
+            }
+
             // Appeler la méthode du contrôleur
             System.out.println("Appel de la méthode: " + method.getName());
             Object result = method.invoke(controller, args);
             
+            // === GESTION DE LA RÉPONSE JSON ===
+            if (isJsonResponse) {
+                System.out.println("Annotation @Json détectée, conversion en JSON");
+                JsonResponseHandler.handleJsonResponse(result, response);
+                return;
+            }
+            
+            // === CODE EXISTANT POUR LES AUTRES TYPES DE RÉPONSE ===
             if (result instanceof String) {
                 response.setContentType("text/html; charset=UTF-8");
                 PrintWriter out = response.getWriter();
@@ -422,20 +434,36 @@ public class FrontServlet extends HttpServlet {
             System.err.println("Message: " + cause.getMessage());
             cause.printStackTrace();
             
-            response.setContentType("text/html; charset=UTF-8");
-            PrintWriter out = response.getWriter();
-            out.println("<html><head><title>Erreur</title></head><body>");
-            out.println("<h1 style='color:red'>Erreur dans le contrôleur</h1>");
-            out.println("<p><strong>" + cause.getClass().getSimpleName() + ":</strong> " + cause.getMessage() + "</p>");
-            out.println("<pre>");
-            cause.printStackTrace(out);
-            out.println("</pre>");
-            out.println("</body></html>");
+            // Vérifier si la méthode était annotée @Json pour retourner une erreur JSON
+            if (method.isAnnotationPresent(Json.class)) {
+                response.setContentType("application/json");
+                response.setCharacterEncoding("UTF-8");
+                PrintWriter out = response.getWriter();
+                out.print(JsonResponseHandler.getJsonError(cause.getMessage()));
+            } else {
+                response.setContentType("text/html; charset=UTF-8");
+                PrintWriter out = response.getWriter();
+                out.println("<html><head><title>Erreur</title></head><body>");
+                out.println("<h1 style='color:red'>Erreur dans le contrôleur</h1>");
+                out.println("<p><strong>" + cause.getClass().getSimpleName() + ":</strong> " + cause.getMessage() + "</p>");
+                out.println("<pre>");
+                cause.printStackTrace(out);
+                out.println("</pre>");
+                out.println("</body></html>");
+            }
             
         } catch (Exception e) {
             System.err.println("Erreur générale dans executeRoute: " + e.getMessage());
             e.printStackTrace();
-            response.getWriter().println("<h1 style='color:red'>Erreur : " + e.getMessage() + "</h1>");
+            
+            // Vérifier si la méthode était annotée @Json
+            if (method != null && method.isAnnotationPresent(Json.class)) {
+                response.setContentType("application/json");
+                response.setCharacterEncoding("UTF-8");
+                response.getWriter().print(JsonResponseHandler.getJsonError(e.getMessage()));
+            } else {
+                response.getWriter().println("<h1 style='color:red'>Erreur : " + e.getMessage() + "</h1>");
+            }
         }
     }
 
