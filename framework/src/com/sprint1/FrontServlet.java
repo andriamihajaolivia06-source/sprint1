@@ -104,6 +104,121 @@ public class FrontServlet extends HttpServlet {
         }
     }
 
+
+        private Object createAndPopulateObject(Class<?> clazz, HttpServletRequest request) 
+            throws Exception {
+        Object obj = clazz.getDeclaredConstructor().newInstance();
+        
+        // Parcourir tous les paramètres de la requête
+        Enumeration<String> paramNames = request.getParameterNames();
+        
+        while (paramNames.hasMoreElements()) {
+            String paramName = paramNames.nextElement();
+            String paramValue = request.getParameter(paramName);
+            
+            if (paramValue != null && !paramValue.isEmpty()) {
+                // Gérer les paramètres imbriqués : note.matiere, note.valeur
+                if (paramName.contains(".")) {
+                    String[] parts = paramName.split("\\.");
+                    String objectName = parts[0]; // "note"
+                    String fieldName = parts[1]; // "matiere" ou "valeur"
+                    
+                    // Trouver l'objet imbriqué
+                    try {
+                        // Getter pour l'objet imbriqué
+                        String getterName = "get" + objectName.substring(0, 1).toUpperCase() + 
+                                        objectName.substring(1);
+                        Method getter = clazz.getMethod(getterName);
+                        Object nestedObj = getter.invoke(obj);
+                        
+                        // Si l'objet imbriqué n'existe pas encore, le créer
+                        if (nestedObj == null) {
+                            // Trouver le type de l'objet imbriqué
+                            Class<?> nestedType = getter.getReturnType();
+                            nestedObj = nestedType.getDeclaredConstructor().newInstance();
+                            
+                            // Setter pour initialiser l'objet imbriqué
+                            String setterName = "set" + objectName.substring(0, 1).toUpperCase() + 
+                                            objectName.substring(1);
+                            Method setter = clazz.getMethod(setterName, nestedType);
+                            setter.invoke(obj, nestedObj);
+                        }
+                        
+                        // Définir la valeur sur l'objet imbriqué
+                        setFieldOnObject(nestedObj, fieldName, paramValue);
+                        
+                    } catch (Exception e) {
+                        System.err.println("Erreur paramètre imbriqué " + paramName + ": " + e.getMessage());
+                    }
+                } else {
+                    // Paramètre simple
+                    setFieldOnObject(obj, paramName, paramValue);
+                }
+            }
+        }
+        
+        return obj;
+    }
+
+    private void setFieldOnObject(Object obj, String fieldName, String value) {
+        try {
+            String setterName = "set" + fieldName.substring(0, 1).toUpperCase() + 
+                            fieldName.substring(1);
+            
+            // Chercher le setter
+            for (Method method : obj.getClass().getMethods()) {
+                if (method.getName().equals(setterName) && method.getParameterCount() == 1) {
+                    Class<?> paramType = method.getParameterTypes()[0];
+                    Object convertedValue = convertValue(value, paramType);
+                    
+                    if (convertedValue != null) {
+                        method.invoke(obj, convertedValue);
+                    }
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Erreur setFieldOnObject " + fieldName + ": " + e.getMessage());
+        }
+    }
+
+    private Object convertValue(String value, Class<?> targetType) {
+        try {
+            if (targetType == String.class) {
+                return value;
+            } else if (targetType == int.class || targetType == Integer.class) {
+                return Integer.parseInt(value);
+            } else if (targetType == double.class || targetType == Double.class) {
+                return Double.parseDouble(value);
+            } else if (targetType == boolean.class || targetType == Boolean.class) {
+                return Boolean.parseBoolean(value);
+            }
+        } catch (Exception e) {
+            System.err.println("Erreur conversion " + value + " vers " + targetType.getName());
+        }
+        return null;
+    }
+
+    private Map<String, Object> buildFormData(HttpServletRequest request) {
+        Map<String, Object> formData = new HashMap<>();
+        Enumeration<String> paramNames = request.getParameterNames();
+        
+        while (paramNames.hasMoreElements()) {
+            String name = paramNames.nextElement();
+            String[] values = request.getParameterValues(name);
+            
+            if (values != null && values.length > 1) {
+                formData.put(name, values);
+            } else if (values != null && values.length == 1 && !values[0].isEmpty()) {
+                formData.put(name, values[0]);
+            } else {
+                formData.put(name, "");
+            }
+        }
+        
+        return formData;
+    }
+
     private void executeRoute(RouteMapping mapping, HttpServletRequest request, HttpServletResponse response, String routePath)
             throws ServletException, IOException {
         Method method = mapping.method;
@@ -134,12 +249,16 @@ public class FrontServlet extends HttpServlet {
                 }
             }
 
-            // === NOUVELLE FONCTIONNALITÉ POUR Map<String, Object> ===
+            // === GESTION DES PARAMÈTRES ===
             for (int i = 0; i < parameters.length; i++) {
                 Parameter param = parameters[i];
+                Class<?> paramType = param.getType();
 
-                // SI LE PARAMÈTRE EST Map<String, Object> → ON LE REMPLIT AUTOMATIQUEMENT
-                if (Map.class.isAssignableFrom(param.getType())) {
+                System.out.println("Traitement paramètre " + i + ": " + param.getName() + 
+                                " de type: " + paramType.getName());
+
+                // 1. SI LE PARAMÈTRE EST Map<String, Object>
+                if (Map.class.isAssignableFrom(paramType)) {
                     Type genericType = param.getParameterizedType();
                     if (genericType instanceof ParameterizedType pt
                             && pt.getActualTypeArguments().length == 2
@@ -153,37 +272,58 @@ public class FrontServlet extends HttpServlet {
                             String name = paramNames.nextElement();
                             String[] values = request.getParameterValues(name);
                             
-                            // Gestion spéciale pour les paramètres multiples (checkbox, select multiple)
                             if (values != null && values.length > 1) {
-                                // Pour les checkbox avec plusieurs valeurs sélectionnées
                                 formData.put(name, values);
-                            } 
-                            // Si une seule valeur non vide
-                            else if (values != null && values.length == 1 && !values[0].isEmpty()) {
+                            } else if (values != null && values.length == 1 && !values[0].isEmpty()) {
                                 formData.put(name, values[0]);
-                            }
-                            // Si vide ou null
-                            else {
+                            } else {
                                 formData.put(name, "");
                             }
                         }
                         
                         args[i] = formData;
-                        continue; // on passe au paramètre suivant
+                        System.out.println("Map créée avec " + formData.size() + " éléments");
+                        continue;
                     }
                 }
 
-                // === CODE ORIGINAL (RequestParam, path variables, etc.) ===
+                // 2. SI C'EST UN OBJET COMPLEXE (Eleve, Note, etc.)
+                // Vérifie si c'est une classe custom (pas primitive, pas String, pas wrapper)
+                if (!paramType.isPrimitive() && 
+                    !paramType.isArray() && 
+                    !paramType.equals(String.class) &&
+                    !Number.class.isAssignableFrom(paramType) &&
+                    !paramType.equals(Boolean.class)) {
+                    
+                    try {
+                        System.out.println("Tentative création objet: " + paramType.getName());
+                        Object obj = createAndPopulateObject(paramType, request);
+                        args[i] = obj;
+                        System.out.println("Objet créé avec succès: " + obj);
+                        continue;
+                    } catch (Exception e) {
+                        System.err.println("Erreur création objet " + paramType.getName() + ": " + e.getMessage());
+                        e.printStackTrace();
+                        args[i] = null;
+                        continue;
+                    }
+                }
+
+                // 3. SI C'EST UN PARAMÈTRE SIMPLE (@RequestParam ou nom simple)
                 RequestParam rp = param.getAnnotation(RequestParam.class);
                 String value = null;
+                
                 if (rp != null && !rp.value().isEmpty()) {
                     value = request.getParameter(rp.value());
+                    System.out.println("RequestParam trouvé: " + rp.value() + " = " + value);
                 } else {
                     String paramName = param.getName();
                     if (pathVariables.containsKey(paramName)) {
                         value = pathVariables.get(paramName);
+                        System.out.println("PathVariable trouvé: " + paramName + " = " + value);
                     } else if (!paramName.startsWith("arg")) {
                         value = request.getParameter(paramName);
+                        System.out.println("Paramètre par nom: " + paramName + " = " + value);
                     } else {
                         int index = 0;
                         for (String val : pathVariables.values()) {
@@ -195,6 +335,7 @@ public class FrontServlet extends HttpServlet {
                         }
                     }
                 }
+                
                 if (value == null || value.isEmpty()) {
                     if (rp != null && !rp.value().isEmpty()) {
                         request.setAttribute("error", "incorrecte");
@@ -204,11 +345,61 @@ public class FrontServlet extends HttpServlet {
                     }
                     value = "";
                 }
-                args[i] = value;
+                
+                // Convertir la valeur selon le type du paramètre
+                System.out.println("Conversion valeur: '" + value + "' vers " + paramType.getName());
+                
+                if (paramType == String.class) {
+                    args[i] = value;
+                } else if (paramType == int.class || paramType == Integer.class) {
+                    try {
+                        args[i] = Integer.parseInt(value);
+                    } catch (NumberFormatException e) {
+                        args[i] = 0;
+                    }
+                } else if (paramType == double.class || paramType == Double.class) {
+                    try {
+                        // Gérer les virgules
+                        String normalizedValue = value.replace(',', '.');
+                        args[i] = Double.parseDouble(normalizedValue);
+                    } catch (NumberFormatException e) {
+                        args[i] = 0.0;
+                    }
+                } else if (paramType == boolean.class || paramType == Boolean.class) {
+                    args[i] = Boolean.parseBoolean(value);
+                } else if (paramType == float.class || paramType == Float.class) {
+                    try {
+                        String normalizedValue = value.replace(',', '.');
+                        args[i] = Float.parseFloat(normalizedValue);
+                    } catch (NumberFormatException e) {
+                        args[i] = 0.0f;
+                    }
+                } else if (paramType == long.class || paramType == Long.class) {
+                    try {
+                        args[i] = Long.parseLong(value);
+                    } catch (NumberFormatException e) {
+                        args[i] = 0L;
+                    }
+                } else {
+                    args[i] = value; // Par défaut, chaîne
+                }
+                
+                System.out.println("Valeur finale: " + args[i] + " (type: " + 
+                    (args[i] != null ? args[i].getClass().getName() : "null") + ")");
             }
             // === FIN DE LA BOUCLE ===
 
+            // DEBUG: Afficher tous les arguments
+            System.out.println("=== ARGUMENTS FINAUX ===");
+            for (int i = 0; i < args.length; i++) {
+                System.out.println("Arg " + i + ": " + 
+                    (args[i] != null ? args[i].getClass().getName() + " = " + args[i] : "null"));
+            }
+
+            // Appeler la méthode du contrôleur
+            System.out.println("Appel de la méthode: " + method.getName());
             Object result = method.invoke(controller, args);
+            
             if (result instanceof String) {
                 response.setContentType("text/html; charset=UTF-8");
                 PrintWriter out = response.getWriter();
@@ -221,9 +412,30 @@ public class FrontServlet extends HttpServlet {
             } else {
                 handleResult(result, request, response, routePath);
             }
+            
+        } catch (InvocationTargetException e) {
+            // Cette exception contient la vraie erreur de la méthode
+            Throwable cause = e.getCause();
+            System.err.println("=== ERREUR DANS L'INVOCATION ===");
+            System.err.println("Méthode: " + method.getName());
+            System.err.println("Contrôleur: " + controller.getClass().getName());
+            System.err.println("Message: " + cause.getMessage());
+            cause.printStackTrace();
+            
+            response.setContentType("text/html; charset=UTF-8");
+            PrintWriter out = response.getWriter();
+            out.println("<html><head><title>Erreur</title></head><body>");
+            out.println("<h1 style='color:red'>Erreur dans le contrôleur</h1>");
+            out.println("<p><strong>" + cause.getClass().getSimpleName() + ":</strong> " + cause.getMessage() + "</p>");
+            out.println("<pre>");
+            cause.printStackTrace(out);
+            out.println("</pre>");
+            out.println("</body></html>");
+            
         } catch (Exception e) {
+            System.err.println("Erreur générale dans executeRoute: " + e.getMessage());
             e.printStackTrace();
-            response.getWriter().println("<h1 style='color:red;'>Erreur : " + e.getMessage() + "</h1>");
+            response.getWriter().println("<h1 style='color:red'>Erreur : " + e.getMessage() + "</h1>");
         }
     }
 
