@@ -11,10 +11,10 @@ public class JsonTestController {
     public Map<String, Object> getAllEleves() {
         System.out.println("API: getAllEleves()");
         
-        // Créer une liste d'élèves
+       
         List<Eleve> eleves = new ArrayList<>();
         
-        // Élève 1
+        
         Eleve eleve1 = new Eleve();
         eleve1.setNom("Dupont");
         eleve1.setAge(15);
@@ -71,7 +71,7 @@ public class JsonTestController {
     public List<Eleve> getEleves() {
         List<Eleve> eleves = new ArrayList<>();
         
-        // Ajouter des élèves de test
+        
         for (int i = 1; i <= 5; i++) {
             Eleve eleve = new Eleve();
             eleve.setNom("Élève " + i);
@@ -85,6 +85,6 @@ public class JsonTestController {
             eleves.add(eleve);
         }
         
-        return eleves; // Sera automatiquement encapsulé avec "count" et "data"
+        return eleves; 
     }
 }

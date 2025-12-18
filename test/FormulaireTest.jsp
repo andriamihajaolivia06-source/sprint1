@@ -253,8 +253,12 @@
 </head>
 <body>
 
+    
+
 <div class="container">
     <h1>Test du Framework Ultime</h1>
+    <h1>ETU003243</h1>
+
 
     <!-- Affichage des erreurs si renvoyées -->
     <c:if test="${not empty error}">
@@ -269,7 +273,7 @@
         </div>
 
         <div class="form-group">
-            <label for="age">Âge :</label>
+            <label for="age">Age :</label>
             <input type="number" id="age" name="age" value="${age}" min="1" max="150" placeholder="Votre âge" />
         </div>
 
@@ -283,11 +287,11 @@
         </div>
 
         <div class="form-group">
-            <label>Loisirs préférés (plusieurs choix possibles) :</label>
+            <label>Loisirs preferes (plusieurs choix possibles) :</label>
             <div class="checkbox-group">
                 <label><input type="checkbox" name="loisir" value="Foot"> Football</label>
                 <label><input type="checkbox" name="loisir" value="Lecture"> Lecture</label>
-                <label><input type="checkbox" name="loisir" value="Jeux"> Jeux vidéo</label>
+                <label><input type="checkbox" name="loisir" value="Jeux"> Jeux video</label>
                 <label><input type="checkbox" name="loisir" value="Musique"> Musique</label>
                 <label><input type="checkbox" name="loisir" value="Voyage"> Voyage</label>
             </div>
