@@ -7,6 +7,7 @@ import java.lang.reflect.*;
 import java.net.URL;
 import java.util.*;
 import java.util.regex.*;
+import java.nio.file.Files;
 
 public class FrontServlet extends HttpServlet {
 
@@ -105,7 +106,7 @@ public class FrontServlet extends HttpServlet {
     }
 
 
-        private Object createAndPopulateObject(Class<?> clazz, HttpServletRequest request) 
+    private Object createAndPopulateObject(Class<?> clazz, HttpServletRequest request) 
             throws Exception {
         Object obj = clazz.getDeclaredConstructor().newInstance();
         
@@ -258,7 +259,121 @@ public class FrontServlet extends HttpServlet {
                 System.out.println("Traitement paramètre " + i + ": " + param.getName() + 
                                 " de type: " + paramType.getName());
 
-                // 1. SI LE PARAMÈTRE EST Map<String, Object>
+                // 1. SI C'EST UN OBJET UPLOAD
+                if (paramType.getName().equals("com.sprint1.Upload")) {
+                    try {
+                        System.out.println("=== DÉBUT TRAITEMENT UPLOAD ===");
+                        System.out.println("Recherche du fichier pour paramètre: " + param.getName());
+                        
+                        // Vérifier si la requête est multipart
+                        String contentType = request.getContentType();
+                        System.out.println("Content-Type de la requête: " + contentType);
+                        
+                        if (contentType != null && contentType.startsWith("multipart/form-data")) {
+                            // CORRECTION CRITIQUE ICI : Utiliser "fichier" au lieu de param.getName()
+                            // car param.getName() retourne "arg0" et non "fichier"
+                            String fieldName = "fichier"; // Nom exact du champ dans le formulaire HTML
+                            jakarta.servlet.http.Part filePart = request.getPart(fieldName);
+                            
+                            // Debug : Vérifier si le fichier est trouvé
+                            if (filePart == null) {
+                                System.out.println("ATTENTION: request.getPart('fichier') retourne NULL");
+                                System.out.println("Tentative avec param.getName() = '" + param.getName() + "'");
+                                filePart = request.getPart(param.getName());
+                            }
+                            
+                            if (filePart != null) {
+                                System.out.println("Fichier trouvé: " + filePart.getSubmittedFileName());
+                                System.out.println("Taille: " + filePart.getSize() + " bytes");
+                                System.out.println("Type: " + filePart.getContentType());
+                                
+                                if (filePart.getSize() > 0) {
+                                    // Lire les données du fichier
+                                    byte[] fileData;
+                                    try (java.io.InputStream inputStream = filePart.getInputStream()) {
+                                        fileData = inputStream.readAllBytes();
+                                    }
+                                    
+                                    // Créer l'objet Upload
+                                    Upload upload = new Upload();
+                                    
+                                    // Nom original du fichier
+                                    String originalFileName = filePart.getSubmittedFileName();
+                                    if (originalFileName == null || originalFileName.isEmpty()) {
+                                        // Extraire du header si getSubmittedFileName() retourne null
+                                        String contentDisposition = filePart.getHeader("content-disposition");
+                                        if (contentDisposition != null) {
+                                            String[] items = contentDisposition.split(";");
+                                            for (String item : items) {
+                                                if (item.trim().startsWith("filename")) {
+                                                    originalFileName = item.substring(item.indexOf('=') + 1).trim().replace("\"", "");
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        if (originalFileName == null || originalFileName.isEmpty()) {
+                                            originalFileName = "fichier_" + System.currentTimeMillis();
+                                        }
+                                    }
+                                    
+                                    upload.setOriginalFileName(originalFileName);
+                                    upload.setFileName(generateUniqueFileName(originalFileName));
+                                    upload.setSize(filePart.getSize());
+                                    upload.setFileData(fileData);
+                                    upload.setContentType(filePart.getContentType());
+                                    
+                                    // Sauvegarder sur disque
+                                    String uploadPath = getServletContext().getRealPath("/uploads");
+                                    if (uploadPath != null) {
+                                        upload.setUploadPath(uploadPath);
+                                        File uploadDir = new File(uploadPath);
+                                        if (!uploadDir.exists()) {
+                                            uploadDir.mkdirs();
+                                        }
+                                        File savedFile = new File(uploadDir, upload.getFileName());
+                                        Files.write(savedFile.toPath(), fileData);
+                                        upload.setSavedFile(savedFile);
+                                        System.out.println("Fichier sauvegardé: " + savedFile.getAbsolutePath());
+                                    }
+                                    
+                                    args[i] = upload;
+                                    System.out.println("Objet Upload créé avec succès: " + upload);
+                                } else {
+                                    System.out.println("Fichier vide (taille = 0)");
+                                    args[i] = null;
+                                }
+                            } else {
+                                System.out.println("Aucun fichier trouvé pour le paramètre: " + param.getName());
+                                
+                                // DEBUG: Lister toutes les parties disponibles
+                                try {
+                                    Collection<jakarta.servlet.http.Part> parts = request.getParts();
+                                    System.out.println("Parts disponibles (" + parts.size() + "):");
+                                    for (jakarta.servlet.http.Part p : parts) {
+                                        System.out.println("  - " + p.getName() + " (" + p.getSize() + " bytes)");
+                                    }
+                                } catch (Exception e) {
+                                    System.out.println("Erreur getParts(): " + e.getMessage());
+                                }
+                                
+                                args[i] = null;
+                            }
+                        } else {
+                            System.out.println("La requête n'est pas multipart/form-data");
+                            args[i] = null;
+                        }
+                        
+                        System.out.println("=== FIN TRAITEMENT UPLOAD ===");
+                        continue;
+                    } catch (Exception e) {
+                        System.err.println("Erreur lors de la création de l'objet Upload: " + e.getMessage());
+                        e.printStackTrace();
+                        args[i] = null;
+                        continue;
+                    }
+                }
+
+                // 2. SI LE PARAMÈTRE EST Map<String, Object>
                 if (Map.class.isAssignableFrom(paramType)) {
                     Type genericType = param.getParameterizedType();
                     if (genericType instanceof ParameterizedType pt
@@ -288,12 +403,13 @@ public class FrontServlet extends HttpServlet {
                     }
                 }
 
-                // 2. SI C'EST UN OBJET COMPLEXE (Eleve, Note, etc.)
+                // 3. SI C'EST UN OBJET COMPLEXE (Eleve, Note, etc.)
                 if (!paramType.isPrimitive() && 
                     !paramType.isArray() && 
                     !paramType.equals(String.class) &&
                     !Number.class.isAssignableFrom(paramType) &&
-                    !paramType.equals(Boolean.class)) {
+                    !paramType.equals(Boolean.class) &&
+                    !paramType.getName().equals("com.sprint1.Upload")) {
                     
                     try {
                         System.out.println("Tentative création objet: " + paramType.getName());
@@ -309,7 +425,7 @@ public class FrontServlet extends HttpServlet {
                     }
                 }
 
-                // 3. SI C'EST UN PARAMÈTRE SIMPLE (@RequestParam ou nom simple)
+                // 4. SI C'EST UN PARAMÈTRE SIMPLE (@RequestParam ou nom simple)
                 RequestParam rp = param.getAnnotation(RequestParam.class);
                 String value = null;
                 
@@ -445,7 +561,7 @@ public class FrontServlet extends HttpServlet {
                 PrintWriter out = response.getWriter();
                 out.println("<html><head><title>Erreur</title></head><body>");
                 out.println("<h1 style='color:red'>Erreur dans le contrôleur</h1>");
-                out.println("<p><strong>" + cause.getClass().getSimpleName() + ":</strong> " + cause.getMessage() + "</p>");
+                out.println("<p><strong>" + cause.getClass().getSimpleName() + ":" + "</strong> " + cause.getMessage() + "</p>");
                 out.println("<pre>");
                 cause.printStackTrace(out);
                 out.println("</pre>");
@@ -465,6 +581,26 @@ public class FrontServlet extends HttpServlet {
                 response.getWriter().println("<h1 style='color:red'>Erreur : " + e.getMessage() + "</h1>");
             }
         }
+    }
+
+    // Méthode utilitaire pour générer un nom de fichier unique
+    private String generateUniqueFileName(String originalFileName) {
+        String name = originalFileName;
+        String ext = "";
+        
+        int dotIndex = originalFileName.lastIndexOf('.');
+        if (dotIndex > 0) {
+            name = originalFileName.substring(0, dotIndex);
+            ext = originalFileName.substring(dotIndex);
+        }
+        
+        // Nettoyer le nom (enlever les caractères spéciaux)
+        name = name.replaceAll("[^a-zA-Z0-9_-]", "_");
+        
+        String timestamp = String.valueOf(System.currentTimeMillis());
+        String random = String.valueOf((int)(Math.random() * 1000));
+        
+        return name + "_" + timestamp + "_" + random + ext;
     }
 
     private void handleResult(Object result, HttpServletRequest request, HttpServletResponse response, String routePath)
