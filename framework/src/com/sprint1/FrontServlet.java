@@ -373,7 +373,83 @@ public class FrontServlet extends HttpServlet {
                     }
                 }
 
-                // 2. SI LE PARAMÈTRE EST Map<String, Object>
+                // 2. SI C'EST UNE Map<String, byte[]> POUR FICHIERS MULTIPLES
+                if (Map.class.isAssignableFrom(paramType)) {
+                    Type genericType = param.getParameterizedType();
+                    
+                    // Vérifier si c'est Map<String, byte[]>
+                    if (genericType instanceof ParameterizedType pt
+                            && pt.getActualTypeArguments().length == 2
+                            && pt.getActualTypeArguments()[0] == String.class
+                            && pt.getActualTypeArguments()[1] == byte[].class) {
+                        
+                        System.out.println("=== DÉBUT TRAITEMENT Map<String, byte[]> ===");
+                        
+                        Map<String, byte[]> fichiersMap = new HashMap<>();
+                        
+                        // Vérifier si la requête est multipart
+                        String contentType = request.getContentType();
+                        if (contentType != null && contentType.startsWith("multipart/form-data")) {
+                            
+                            try {
+                                // Obtenir tous les parts de la requête
+                                Collection<jakarta.servlet.http.Part> parts = request.getParts();
+                                System.out.println("Parts trouvés: " + parts.size());
+                                
+                                for (jakarta.servlet.http.Part part : parts) {
+                                    String fieldName = part.getName();
+                                    String fileName = part.getSubmittedFileName();
+                                    
+                                    System.out.println("Traitement part: name='" + fieldName + 
+                                        "', filename='" + fileName + 
+                                        "', size=" + part.getSize());
+                                    
+                                    // Ne traiter que les fichiers non vides
+                                    if (fileName != null && !fileName.isEmpty() && part.getSize() > 0) {
+                                        // Lire les données du fichier
+                                        try (java.io.InputStream inputStream = part.getInputStream()) {
+                                            byte[] fileData = inputStream.readAllBytes();
+                                            
+                                            // Utiliser le nom du fichier comme clé
+                                            String key = fileName;
+                                            fichiersMap.put(key, fileData);
+                                            
+                                            System.out.println("Fichier ajouté à la map: " + fileName + 
+                                                " (" + fileData.length + " bytes)");
+                                            
+                                            // Optionnel: sauvegarder sur disque
+                                            String uploadPath = getServletContext().getRealPath("/uploads");
+                                            if (uploadPath != null) {
+                                                File uploadDir = new File(uploadPath);
+                                                if (!uploadDir.exists()) {
+                                                    uploadDir.mkdirs();
+                                                }
+                                                
+                                                String uniqueFileName = generateUniqueFileName(fileName);
+                                                File savedFile = new File(uploadDir, uniqueFileName);
+                                                Files.write(savedFile.toPath(), fileData);
+                                                System.out.println("Fichier sauvegardé: " + savedFile.getAbsolutePath());
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (Exception e) {
+                                System.err.println("Erreur lors de la lecture des fichiers: " + e.getMessage());
+                                e.printStackTrace();
+                            }
+                        } else {
+                            System.out.println("La requête n'est pas multipart/form-data");
+                        }
+                        
+                        System.out.println("Map<String, byte[]> créée avec " + fichiersMap.size() + " fichiers");
+                        System.out.println("=== FIN TRAITEMENT Map<String, byte[]> ===");
+                        
+                        args[i] = fichiersMap;
+                        continue;
+                    }
+                }
+
+                // 3. SI LE PARAMÈTRE EST Map<String, Object>
                 if (Map.class.isAssignableFrom(paramType)) {
                     Type genericType = param.getParameterizedType();
                     if (genericType instanceof ParameterizedType pt
@@ -398,18 +474,19 @@ public class FrontServlet extends HttpServlet {
                         }
                         
                         args[i] = formData;
-                        System.out.println("Map créée avec " + formData.size() + " éléments");
+                        System.out.println("Map<String, Object> créée avec " + formData.size() + " éléments");
                         continue;
                     }
                 }
 
-                // 3. SI C'EST UN OBJET COMPLEXE (Eleve, Note, etc.)
+                // 4. SI C'EST UN OBJET COMPLEXE (Eleve, Note, etc.)
                 if (!paramType.isPrimitive() && 
                     !paramType.isArray() && 
                     !paramType.equals(String.class) &&
                     !Number.class.isAssignableFrom(paramType) &&
                     !paramType.equals(Boolean.class) &&
-                    !paramType.getName().equals("com.sprint1.Upload")) {
+                    !paramType.getName().equals("com.sprint1.Upload") &&
+                    !Map.class.isAssignableFrom(paramType)) {
                     
                     try {
                         System.out.println("Tentative création objet: " + paramType.getName());
@@ -425,7 +502,7 @@ public class FrontServlet extends HttpServlet {
                     }
                 }
 
-                // 4. SI C'EST UN PARAMÈTRE SIMPLE (@RequestParam ou nom simple)
+                // 5. SI C'EST UN PARAMÈTRE SIMPLE (@RequestParam ou nom simple)
                 RequestParam rp = param.getAnnotation(RequestParam.class);
                 String value = null;
                 
