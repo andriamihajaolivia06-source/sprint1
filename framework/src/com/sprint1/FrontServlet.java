@@ -193,6 +193,10 @@ public class FrontServlet extends HttpServlet {
                 return Double.parseDouble(value);
             } else if (targetType == boolean.class || targetType == Boolean.class) {
                 return Boolean.parseBoolean(value);
+            } else if (targetType == float.class || targetType == Float.class) {
+                return Float.parseFloat(value);
+            } else if (targetType == long.class || targetType == Long.class) {
+                return Long.parseLong(value);
             }
         } catch (Exception e) {
             System.err.println("Erreur conversion " + value + " vers " + targetType.getName());
@@ -259,7 +263,46 @@ public class FrontServlet extends HttpServlet {
                 System.out.println("Traitement paramètre " + i + ": " + param.getName() + 
                                 " de type: " + paramType.getName());
 
-                // 1. SI C'EST UN OBJET UPLOAD
+                // 1. SI C'EST UN PARAMÈTRE DE SESSION (@Session)
+                Session sessionAnnotation = param.getAnnotation(Session.class);
+                if (sessionAnnotation != null) {
+                    try {
+                        System.out.println("=== DÉBUT TRAITEMENT SESSION ===");
+                        System.out.println("Annotation @Session trouvée");
+                        
+                        // Vérifier que c'est bien une Map<String, Object>
+                        if (Map.class.isAssignableFrom(paramType)) {
+                            Type genericType = param.getParameterizedType();
+                            if (genericType instanceof ParameterizedType pt
+                                    && pt.getActualTypeArguments().length == 2
+                                    && pt.getActualTypeArguments()[0] == String.class
+                                    && pt.getActualTypeArguments()[1] == Object.class) {
+                                
+                                // Créer une Map spéciale qui va lire/écrire dans la session
+                                SessionMap sessionMap = new SessionMap(request);
+                                args[i] = sessionMap;
+                                System.out.println("SessionMap créée: " + sessionMap);
+                                
+                            } else {
+                                System.err.println("ERREUR: Le paramètre @Session doit être de type Map<String, Object>");
+                                args[i] = null;
+                            }
+                        } else {
+                            System.err.println("ERREUR: Le paramètre @Session doit être de type Map<String, Object>");
+                            args[i] = null;
+                        }
+                        
+                        System.out.println("=== FIN TRAITEMENT SESSION ===");
+                        continue;
+                    } catch (Exception e) {
+                        System.err.println("Erreur lors du traitement de la session: " + e.getMessage());
+                        e.printStackTrace();
+                        args[i] = null;
+                        continue;
+                    }
+                }
+
+                // 2. SI C'EST UN OBJET UPLOAD
                 if (paramType.getName().equals("com.sprint1.Upload")) {
                     try {
                         System.out.println("=== DÉBUT TRAITEMENT UPLOAD ===");
@@ -373,7 +416,7 @@ public class FrontServlet extends HttpServlet {
                     }
                 }
 
-                // 2. SI C'EST UNE Map<String, byte[]> POUR FICHIERS MULTIPLES
+                // 3. SI C'EST UNE Map<String, byte[]> POUR FICHIERS MULTIPLES
                 if (Map.class.isAssignableFrom(paramType)) {
                     Type genericType = param.getParameterizedType();
                     
@@ -449,7 +492,7 @@ public class FrontServlet extends HttpServlet {
                     }
                 }
 
-                // 3. SI LE PARAMÈTRE EST Map<String, Object>
+                // 4. SI LE PARAMÈTRE EST Map<String, Object> (pour les formulaires)
                 if (Map.class.isAssignableFrom(paramType)) {
                     Type genericType = param.getParameterizedType();
                     if (genericType instanceof ParameterizedType pt
@@ -457,29 +500,32 @@ public class FrontServlet extends HttpServlet {
                             && pt.getActualTypeArguments()[0] == String.class
                             && pt.getActualTypeArguments()[1] == Object.class) {
 
-                        Map<String, Object> formData = new HashMap<>();
-                        Enumeration<String> paramNames = request.getParameterNames();
-                        
-                        while (paramNames.hasMoreElements()) {
-                            String name = paramNames.nextElement();
-                            String[] values = request.getParameterValues(name);
+                        // Vérifier si c'est déjà traité comme session
+                        if (param.getAnnotation(Session.class) == null) {
+                            Map<String, Object> formData = new HashMap<>();
+                            Enumeration<String> paramNames = request.getParameterNames();
                             
-                            if (values != null && values.length > 1) {
-                                formData.put(name, values);
-                            } else if (values != null && values.length == 1 && !values[0].isEmpty()) {
-                                formData.put(name, values[0]);
-                            } else {
-                                formData.put(name, "");
+                            while (paramNames.hasMoreElements()) {
+                                String name = paramNames.nextElement();
+                                String[] values = request.getParameterValues(name);
+                                
+                                if (values != null && values.length > 1) {
+                                    formData.put(name, values);
+                                } else if (values != null && values.length == 1 && !values[0].isEmpty()) {
+                                    formData.put(name, values[0]);
+                                } else {
+                                    formData.put(name, "");
+                                }
                             }
+                            
+                            args[i] = formData;
+                            System.out.println("Map<String, Object> (formulaire) créée avec " + formData.size() + " éléments");
+                            continue;
                         }
-                        
-                        args[i] = formData;
-                        System.out.println("Map<String, Object> créée avec " + formData.size() + " éléments");
-                        continue;
                     }
                 }
 
-                // 4. SI C'EST UN OBJET COMPLEXE (Eleve, Note, etc.)
+                // 5. SI C'EST UN OBJET COMPLEXE (Eleve, Note, etc.)
                 if (!paramType.isPrimitive() && 
                     !paramType.isArray() && 
                     !paramType.equals(String.class) &&
@@ -502,7 +548,7 @@ public class FrontServlet extends HttpServlet {
                     }
                 }
 
-                // 5. SI C'EST UN PARAMÈTRE SIMPLE (@RequestParam ou nom simple)
+                // 6. SI C'EST UN PARAMÈTRE SIMPLE (@RequestParam ou nom simple)
                 RequestParam rp = param.getAnnotation(RequestParam.class);
                 String value = null;
                 
