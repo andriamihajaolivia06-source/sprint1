@@ -105,123 +105,54 @@ public class FrontServlet extends HttpServlet {
         }
     }
 
-
-    private Object createAndPopulateObject(Class<?> clazz, HttpServletRequest request) 
-            throws Exception {
-        Object obj = clazz.getDeclaredConstructor().newInstance();
+    private boolean checkSecurity(Method method, HttpServletRequest request) {
+        System.out.println("=== VÉRIFICATION SÉCURITÉ ===");
         
-        // Parcourir tous les paramètres de la requête
-        Enumeration<String> paramNames = request.getParameterNames();
+        // Vérifier les annotations sur la méthode
+        Authentified methodAuth = method.getAnnotation(Authentified.class);
+        Role methodRole = method.getAnnotation(Role.class);
         
-        while (paramNames.hasMoreElements()) {
-            String paramName = paramNames.nextElement();
-            String paramValue = request.getParameter(paramName);
+        // Vérifier les annotations sur la classe
+        Class<?> controllerClass = method.getDeclaringClass();
+        Authentified classAuth = controllerClass.getAnnotation(Authentified.class);
+        Role classRole = controllerClass.getAnnotation(Role.class);
+        
+        // Déterminer les exigences de sécurité
+        boolean requiresAuth = (methodAuth != null) || (classAuth != null);
+        String requiredRole = null;
+        
+        if (methodRole != null) {
+            requiredRole = methodRole.value();
+        } else if (classRole != null) {
+            requiredRole = classRole.value();
+        }
+        
+        System.out.println("Requiert authentification: " + requiresAuth);
+        System.out.println("Rôle requis: " + (requiredRole != null ? requiredRole : "aucun"));
+        
+        // Vérifier l'authentification
+        if (requiresAuth) {
+            HttpSession session = request.getSession(false);
+            if (session == null || session.getAttribute("user") == null) {
+                System.out.println("❌ Utilisateur non authentifié");
+                return false;
+            }
+            System.out.println("✅ Utilisateur authentifié");
             
-            if (paramValue != null && !paramValue.isEmpty()) {
-                // Gérer les paramètres imbriqués : note.matiere, note.valeur
-                if (paramName.contains(".")) {
-                    String[] parts = paramName.split("\\.");
-                    String objectName = parts[0]; // "note"
-                    String fieldName = parts[1]; // "matiere" ou "valeur"
-                    
-                    // Trouver l'objet imbriqué
-                    try {
-                        // Getter pour l'objet imbriqué
-                        String getterName = "get" + objectName.substring(0, 1).toUpperCase() + 
-                                        objectName.substring(1);
-                        Method getter = clazz.getMethod(getterName);
-                        Object nestedObj = getter.invoke(obj);
-                        
-                        // Si l'objet imbriqué n'existe pas encore, le créer
-                        if (nestedObj == null) {
-                            // Trouver le type de l'objet imbriqué
-                            Class<?> nestedType = getter.getReturnType();
-                            nestedObj = nestedType.getDeclaredConstructor().newInstance();
-                            
-                            // Setter pour initialiser l'objet imbriqué
-                            String setterName = "set" + objectName.substring(0, 1).toUpperCase() + 
-                                            objectName.substring(1);
-                            Method setter = clazz.getMethod(setterName, nestedType);
-                            setter.invoke(obj, nestedObj);
-                        }
-                        
-                        // Définir la valeur sur l'objet imbriqué
-                        setFieldOnObject(nestedObj, fieldName, paramValue);
-                        
-                    } catch (Exception e) {
-                        System.err.println("Erreur paramètre imbriqué " + paramName + ": " + e.getMessage());
-                    }
-                } else {
-                    // Paramètre simple
-                    setFieldOnObject(obj, paramName, paramValue);
+            // Vérifier le rôle si nécessaire
+            if (requiredRole != null) {
+                User user = (User) session.getAttribute("user");
+                if (user == null || !requiredRole.equals(user.getRole())) {
+                    System.out.println("❌ Rôle insuffisant. Requis: " + requiredRole + 
+                                     ", Actuel: " + (user != null ? user.getRole() : "null"));
+                    return false;
                 }
+                System.out.println("✅ Rôle vérifié: " + user.getRole());
             }
         }
         
-        return obj;
-    }
-
-    private void setFieldOnObject(Object obj, String fieldName, String value) {
-        try {
-            String setterName = "set" + fieldName.substring(0, 1).toUpperCase() + 
-                            fieldName.substring(1);
-            
-            // Chercher le setter
-            for (Method method : obj.getClass().getMethods()) {
-                if (method.getName().equals(setterName) && method.getParameterCount() == 1) {
-                    Class<?> paramType = method.getParameterTypes()[0];
-                    Object convertedValue = convertValue(value, paramType);
-                    
-                    if (convertedValue != null) {
-                        method.invoke(obj, convertedValue);
-                    }
-                    return;
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Erreur setFieldOnObject " + fieldName + ": " + e.getMessage());
-        }
-    }
-
-    private Object convertValue(String value, Class<?> targetType) {
-        try {
-            if (targetType == String.class) {
-                return value;
-            } else if (targetType == int.class || targetType == Integer.class) {
-                return Integer.parseInt(value);
-            } else if (targetType == double.class || targetType == Double.class) {
-                return Double.parseDouble(value);
-            } else if (targetType == boolean.class || targetType == Boolean.class) {
-                return Boolean.parseBoolean(value);
-            } else if (targetType == float.class || targetType == Float.class) {
-                return Float.parseFloat(value);
-            } else if (targetType == long.class || targetType == Long.class) {
-                return Long.parseLong(value);
-            }
-        } catch (Exception e) {
-            System.err.println("Erreur conversion " + value + " vers " + targetType.getName());
-        }
-        return null;
-    }
-
-    private Map<String, Object> buildFormData(HttpServletRequest request) {
-        Map<String, Object> formData = new HashMap<>();
-        Enumeration<String> paramNames = request.getParameterNames();
-        
-        while (paramNames.hasMoreElements()) {
-            String name = paramNames.nextElement();
-            String[] values = request.getParameterValues(name);
-            
-            if (values != null && values.length > 1) {
-                formData.put(name, values);
-            } else if (values != null && values.length == 1 && !values[0].isEmpty()) {
-                formData.put(name, values[0]);
-            } else {
-                formData.put(name, "");
-            }
-        }
-        
-        return formData;
+        System.out.println("=== FIN VÉRIFICATION SÉCURITÉ ===");
+        return true;
     }
 
     private void executeRoute(RouteMapping mapping, HttpServletRequest request, HttpServletResponse response, String routePath)
@@ -230,6 +161,13 @@ public class FrontServlet extends HttpServlet {
         Object controller = controllers.get(method.getDeclaringClass().getName());
         
         try {
+            // === VÉRIFICATION DE SÉCURITÉ ===
+            if (!checkSecurity(method, request)) {
+                // Rediriger vers la page de login si non authentifié
+                response.sendRedirect(request.getContextPath() + "/auth/login");
+                return;
+            }
+            
             Parameter[] parameters = method.getParameters();
             Object[] args = new Object[parameters.length];
 
@@ -724,6 +662,124 @@ public class FrontServlet extends HttpServlet {
         String random = String.valueOf((int)(Math.random() * 1000));
         
         return name + "_" + timestamp + "_" + random + ext;
+    }
+
+    private Object createAndPopulateObject(Class<?> clazz, HttpServletRequest request) 
+            throws Exception {
+        Object obj = clazz.getDeclaredConstructor().newInstance();
+        
+        // Parcourir tous les paramètres de la requête
+        Enumeration<String> paramNames = request.getParameterNames();
+        
+        while (paramNames.hasMoreElements()) {
+            String paramName = paramNames.nextElement();
+            String paramValue = request.getParameter(paramName);
+            
+            if (paramValue != null && !paramValue.isEmpty()) {
+                // Gérer les paramètres imbriqués : note.matiere, note.valeur
+                if (paramName.contains(".")) {
+                    String[] parts = paramName.split("\\.");
+                    String objectName = parts[0]; // "note"
+                    String fieldName = parts[1]; // "matiere" ou "valeur"
+                    
+                    // Trouver l'objet imbriqué
+                    try {
+                        // Getter pour l'objet imbriqué
+                        String getterName = "get" + objectName.substring(0, 1).toUpperCase() + 
+                                        objectName.substring(1);
+                        Method getter = clazz.getMethod(getterName);
+                        Object nestedObj = getter.invoke(obj);
+                        
+                        // Si l'objet imbriqué n'existe pas encore, le créer
+                        if (nestedObj == null) {
+                            // Trouver le type de l'objet imbriqué
+                            Class<?> nestedType = getter.getReturnType();
+                            nestedObj = nestedType.getDeclaredConstructor().newInstance();
+                            
+                            // Setter pour initialiser l'objet imbriqué
+                            String setterName = "set" + objectName.substring(0, 1).toUpperCase() + 
+                                            objectName.substring(1);
+                            Method setter = clazz.getMethod(setterName, nestedType);
+                            setter.invoke(obj, nestedObj);
+                        }
+                        
+                        // Définir la valeur sur l'objet imbriqué
+                        setFieldOnObject(nestedObj, fieldName, paramValue);
+                        
+                    } catch (Exception e) {
+                        System.err.println("Erreur paramètre imbriqué " + paramName + ": " + e.getMessage());
+                    }
+                } else {
+                    // Paramètre simple
+                    setFieldOnObject(obj, paramName, paramValue);
+                }
+            }
+        }
+        
+        return obj;
+    }
+
+    private void setFieldOnObject(Object obj, String fieldName, String value) {
+        try {
+            String setterName = "set" + fieldName.substring(0, 1).toUpperCase() + 
+                            fieldName.substring(1);
+            
+            // Chercher le setter
+            for (Method method : obj.getClass().getMethods()) {
+                if (method.getName().equals(setterName) && method.getParameterCount() == 1) {
+                    Class<?> paramType = method.getParameterTypes()[0];
+                    Object convertedValue = convertValue(value, paramType);
+                    
+                    if (convertedValue != null) {
+                        method.invoke(obj, convertedValue);
+                    }
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Erreur setFieldOnObject " + fieldName + ": " + e.getMessage());
+        }
+    }
+
+    private Object convertValue(String value, Class<?> targetType) {
+        try {
+            if (targetType == String.class) {
+                return value;
+            } else if (targetType == int.class || targetType == Integer.class) {
+                return Integer.parseInt(value);
+            } else if (targetType == double.class || targetType == Double.class) {
+                return Double.parseDouble(value);
+            } else if (targetType == boolean.class || targetType == Boolean.class) {
+                return Boolean.parseBoolean(value);
+            } else if (targetType == float.class || targetType == Float.class) {
+                return Float.parseFloat(value);
+            } else if (targetType == long.class || targetType == Long.class) {
+                return Long.parseLong(value);
+            }
+        } catch (Exception e) {
+            System.err.println("Erreur conversion " + value + " vers " + targetType.getName());
+        }
+        return null;
+    }
+
+    private Map<String, Object> buildFormData(HttpServletRequest request) {
+        Map<String, Object> formData = new HashMap<>();
+        Enumeration<String> paramNames = request.getParameterNames();
+        
+        while (paramNames.hasMoreElements()) {
+            String name = paramNames.nextElement();
+            String[] values = request.getParameterValues(name);
+            
+            if (values != null && values.length > 1) {
+                formData.put(name, values);
+            } else if (values != null && values.length == 1 && !values[0].isEmpty()) {
+                formData.put(name, values[0]);
+            } else {
+                formData.put(name, "");
+            }
+        }
+        
+        return formData;
     }
 
     private void handleResult(Object result, HttpServletRequest request, HttpServletResponse response, String routePath)
