@@ -272,6 +272,7 @@
             <a href="/sprint1/session/view">Voir les variables</a>
             <a href="/sprint1/session/increment">Incrémenter</a>
             <a href="/sprint1/session/remove" class="danger">Supprimer nom</a>
+            <a href="/sprint1/session/remove" class="danger">Remove stock</a>
             <a href="/sprint1/session/clear" class="danger">Effacer session</a>
         </div>
     </div>
